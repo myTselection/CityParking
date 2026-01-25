@@ -14,6 +14,9 @@ This integration is in no way affiliated with seety.
 | :warning: Please don't report issues with this integration to other platforms, they will not be able to support you. |
 | ---------------------------------------------------------------------------------------------------------------------|
 
+
+<p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/icon.png"/></p>
+
 # Main use case:
 
 Whenever you exit your car (and not at home), check if any parking and parking card limitations apply for your current location. Warn you when you need to place your parking card or show local parking rates and cheapest free parking in neighbourhood.
@@ -23,8 +26,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 
 
 
-
-<p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/icon.png"/></p>
 
 
 
