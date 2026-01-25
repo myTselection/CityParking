@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 # import evrecharge
+from .seetyApi import SeetyApi
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import (
@@ -16,14 +17,11 @@ from homeassistant.core import (
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.location import find_coordinates
-from .evrecharge import EVApi
 
-from .const import DOMAIN, CONF_ORIGIN, CONF_SINGLE, CONF_PUBLIC, CONF_SHELL, CONF_SERIAL_NUMBER, CONF_EMAIL, CONF_PASSWORD, CONF_API_KEY, CONF_ONLY_ENECO, CONF_MIN_POWER, CONF_AVAILABLE
+from .const import DOMAIN, CONF_ORIGIN
 from .coordinator import (
-    EVRechargePublicDataUpdateCoordinator,
-    EVRechargeUserDataUpdateCoordinator,
-    StationsPublicDataUpdateCoordinator,
-    async_find_nearest
+    CityParkingUserDataUpdateCoordinator,
+    async_find_city_parking_info
 )
 from pywaze.route_calculator import WazeRouteCalculator
 import voluptuous as vol
@@ -41,13 +39,10 @@ from homeassistant.helpers.selector import (
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-SERVICE_FIND_NEAREST = "find_nearest"
-SERVICE_FIND_NEAREST_SCHEMA = vol.Schema(
+SERVICE_CITY_PARKING_INFO = "city_parking_info"
+SERVICE_CITY_PARKING_INFO_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_ORIGIN): TextSelector(),
-        vol.Optional(CONF_ONLY_ENECO, default=False): BooleanSelector(),
-        vol.Optional(CONF_MIN_POWER, default=0): NumberSelector(),
-        vol.Optional(CONF_AVAILABLE, default=False): BooleanSelector()
+        vol.Required(CONF_ORIGIN): TextSelector()
     }
 )
 
@@ -73,28 +68,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
 
-    evapi = EVApi(websession=async_get_clientsession(hass))
+    seetyApi = SeetyApi(websession=async_get_clientsession(hass))
 
-    coordinator: EVRechargePublicDataUpdateCoordinator | EVRechargeUserDataUpdateCoordinator | StationsPublicDataUpdateCoordinator
-    if entry.data.get(CONF_PUBLIC) and entry.data[CONF_PUBLIC].get(CONF_ORIGIN):
-        httpx_client = get_async_client(hass)
-        routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
-        coordinator = StationsPublicDataUpdateCoordinator(
-            hass, evapi, entry, routeCalculatorClient
-        )
-    elif entry.data.get(CONF_SINGLE) and entry.data[CONF_SINGLE].get(CONF_SERIAL_NUMBER):
-        coordinator = EVRechargePublicDataUpdateCoordinator(
-            hass, evapi, entry.data[CONF_SINGLE][CONF_SERIAL_NUMBER]
-        )
-    else:
-        coordinator = EVRechargeUserDataUpdateCoordinator(
-            hass,
-            await evapi.get_user(
-                entry.data[CONF_SHELL][CONF_EMAIL],
-                entry.data[CONF_SHELL][CONF_PASSWORD],
-                entry.data[CONF_SHELL].get(CONF_API_KEY),
-            ),
-        )
+    coordinator: CityParkingUserDataUpdateCoordinator
+    httpx_client = get_async_client(hass)
+    routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
+    coordinator = CityParkingUserDataUpdateCoordinator(
+        hass, seetyApi, entry, routeCalculatorClient)
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await coordinator.async_config_entry_first_refresh()
@@ -106,28 +86,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
 
         origin = service.data[CONF_ORIGIN]
-        only_eneco = service.data[CONF_ONLY_ENECO]
-        min_power = service.data[CONF_MIN_POWER]
-        available = service.data[CONF_AVAILABLE]
 
 
-
-        response = await async_find_nearest(
+        response = await async_find_city_parking_info(
             hass=hass,
-            evapi=evapi,
+            seetyApi=seetyApi,
             origin=origin,
-            only_eneco=only_eneco,
-            min_power=min_power,
-            available=available,
             routeCalculatorClient=routeCalculatorClient
         )
-        return {"nearest_station": response}
+        return {"city_parking_info": response}
 
     hass.services.async_register(
         DOMAIN,
-        SERVICE_FIND_NEAREST,
+        SERVICE_CITY_PARKING_INFO,
         async_find_nearest_service,
-        SERVICE_FIND_NEAREST_SCHEMA,
+        SERVICE_CITY_PARKING_INFO_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     return True

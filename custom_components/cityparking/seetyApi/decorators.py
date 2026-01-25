@@ -8,11 +8,11 @@ def retry_on_401(func: Callable):
     @wraps(func)
     async def wrapper(self, *args, **kwargs):
         if not hasattr(self, "cookies"):
-            await self.authenticate()
+            await self.getSeetyToken()
         response = await func(self, *args, **kwargs)
 
         if response.status == 401:
-            await self.authenticate()
+            await self.getSeetyToken()
             response = await func(self, *args, **kwargs)
         return response
 
