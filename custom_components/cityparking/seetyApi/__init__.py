@@ -37,9 +37,9 @@ class SeetyApi:
         response = await self.json_post_with_retry_client(url, payload={})
 
         if pydantic.version.VERSION.startswith("1"):
-            seetyUser = SeetyUser.parse_obj(response.json())
+            seetyUser = SeetyUser.parse_obj(response)
         else:
-            seetyUser = SeetyUser.model_validate(response.json())
+            seetyUser = SeetyUser.model_validate(response)
 
         return seetyUser
     
@@ -52,9 +52,9 @@ class SeetyApi:
         response = await self.json_get_with_retry_client(url, header=header)
 
         if pydantic.version.VERSION.startswith("1"):
-            seetyLocationInfo = SeetyLocation.parse_obj(response.json())
+            seetyLocationInfo = SeetyLocation.parse_obj(response)
         else:
-            seetyLocationInfo = SeetyLocation.model_validate(response.json())
+            seetyLocationInfo = SeetyLocation.model_validate(response)
 
         return seetyLocationInfo
 
@@ -69,18 +69,18 @@ class SeetyApi:
         response = await self.json_get_with_retry_client(url, header=header)
         
         if pydantic.version.VERSION.startswith("1"):
-            seetyStreetRules = SeetyStreetRules.parse_obj(response.json())
+            seetyStreetRules = SeetyStreetRules.parse_obj(response)
         else:
-            seetyStreetRules = SeetyStreetRules.model_validate(response.json())
+            seetyStreetRules = SeetyStreetRules.model_validate(response)
 
         
         url = URL(f"https://api.cparkapp.com/street/complete/{formatted_address}/{coordinates.latitude}/{coordinates.longitude}")
         responseComplete = await self.json_get_with_retry_client(url, header=header)
         
         if pydantic.version.VERSION.startswith("1"):
-            seetyStreetComplete = SeetyStreetComplete.parse_obj(responseComplete.json())
+            seetyStreetComplete = SeetyStreetComplete.parse_obj(responseComplete)
         else:
-            seetyStreetComplete = SeetyStreetComplete.model_validate(responseComplete.json())
+            seetyStreetComplete = SeetyStreetComplete.model_validate(responseComplete)
 
         cityParkingModel: CityParkingModel
         cityParkingModel = CityParkingModel(
