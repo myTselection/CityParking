@@ -16,7 +16,7 @@ This integration is in no way affiliated with seety.
 | ---------------------------------------------------------------------------------------------------------------------|
 
 
-<p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/logo.png"/></p>
+<p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/icon.png"/></p>
 
 
 

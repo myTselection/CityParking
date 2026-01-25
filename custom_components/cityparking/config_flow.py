@@ -19,8 +19,8 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
     selector, SelectSelector, SelectSelectorConfig
 )
-from .evrecharge import EVApi, LocationEmptyError, LocationValidationError
-from .evrecharge.user import LoginFailedError
+from .api import EVApi, LocationEmptyError, LocationValidationError
+from .api.user import LoginFailedError
 # from .location import LocationSession
 from pywaze.route_calculator import WazeRouteCalculator
 

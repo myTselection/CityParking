@@ -9,10 +9,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
-from .evrecharge import EVApi, ShellChargingStation, LocationEmptyError
-from .evrecharge.models import NearestChargingStations, Coords, EnecoChargingStation
-from .evrecharge.user import AssetsEmptyError, DetailedChargePointEmptyError, User
-from .evrecharge.usermodels import DetailedAssets
+from .api import EVApi, ShellChargingStation, LocationEmptyError
+from .api.models import NearestChargingStations, Coords, EnecoChargingStation
+from .api.user import AssetsEmptyError, DetailedChargePointEmptyError, User
+from .api.usermodels import DetailedAssets
 # from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator, WRCError
 

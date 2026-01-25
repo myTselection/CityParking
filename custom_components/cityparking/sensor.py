@@ -18,8 +18,8 @@ from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .evrecharge.models import ShellChargingStation, ShellStatus, ShellConnector, NearestChargingStations, EnecoStatus, EnecoConnector, EnecoChargingStation, EnecoEvse
-from .evrecharge.usermodels import ChargePointDetailedStatus, ChargeToken, DetailedAssets, DetailedChargePoint, DetailedEvse
+from .api.models import ShellChargingStation, ShellStatus, ShellConnector, NearestChargingStations, EnecoStatus, EnecoConnector, EnecoChargingStation, EnecoEvse
+from .api.usermodels import ChargePointDetailedStatus, ChargeToken, DetailedAssets, DetailedChargePoint, DetailedEvse
 
 from . import (
     EVRechargePublicDataUpdateCoordinator,
