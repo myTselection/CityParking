@@ -22,7 +22,7 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 _RADIUS = 100
 
-class EVApi:
+class ExtSourceApi:
     """Class to make API requests."""
 
     def __init__(self, websession: ClientSession, source: str = "eneco"):
@@ -35,32 +35,6 @@ class EVApi:
         )
         self.source = source
 
-    async def station_by_id(self, station_id: str) -> ShellChargingStation | EnecoChargingStation | None:
-        """
-        Perform API request.
-        Usually yields just one Location object with one or multiple chargers.
-        """
-
-        if self.source == "eneco":
-            return await self.getEnecoChargingStation(station_id)
-        
-        if self.source == "shell":
-            return await self.getShellChargingStation(station_id)(station_id)
-
-    async def getShellChargingStation(self, station_id):
-        url = URL(
-            "https://ui-map.shellrecharge.com/api/map/v2/locations/search/{}".format(
-                station_id
-            )
-        )
-        response = await self.json_get_with_retry_client(url)
-        
-        if pydantic.version.VERSION.startswith("1"):
-            station = ShellChargingStation.parse_obj(response[0])
-        else:
-            station = ShellChargingStation.model_validate(response[0])
-
-        return station
 
     async def getEnecoChargingStation(self, station_id):
         url = URL(

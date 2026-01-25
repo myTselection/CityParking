@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
-from .api import EVApi, ShellChargingStation, LocationEmptyError
+from .api import ExtSourceApi, ShellChargingStation, LocationEmptyError
 from .api.models import NearestChargingStations, Coords, EnecoChargingStation
 from .api.user import AssetsEmptyError, DetailedChargePointEmptyError, User
 from .api.usermodels import DetailedAssets
@@ -91,7 +91,7 @@ class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ShellChargingS
     """Handles data updates for public chargers."""
 
     def __init__(
-        self, hass: HomeAssistant, api: EVApi, serial_number: SerialNumber
+        self, hass: HomeAssistant, api: ExtSourceApi, serial_number: SerialNumber
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
@@ -165,7 +165,7 @@ class EVRechargePublicDataUpdateCoordinator(DataUpdateCoordinator[ShellChargingS
             # routeCalculatorClient=routeCalculatorClient
 async def async_find_nearest(
         hass: HomeAssistant,
-        evapi: EVApi,
+        evapi: ExtSourceApi,
         routeCalculatorClient: WazeRouteCalculator,
         origin: str,
         only_eneco=bool,
@@ -209,7 +209,7 @@ class StationsPublicDataUpdateCoordinator(DataUpdateCoordinator):
     config_entry: ConfigEntry
 
     def __init__(
-        self, hass: HomeAssistant, evapi: EVApi, config_entry: ConfigEntry, routeCalculatorClient: WazeRouteCalculator
+        self, hass: HomeAssistant, evapi: ExtSourceApi, config_entry: ConfigEntry, routeCalculatorClient: WazeRouteCalculator
     ) -> None:
         """Initialize coordinator."""
         super().__init__(

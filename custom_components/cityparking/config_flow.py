@@ -19,7 +19,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
     selector, SelectSelector, SelectSelectorConfig
 )
-from .api import EVApi, LocationEmptyError, LocationValidationError
+from .api import ExtSourceApi, LocationEmptyError, LocationValidationError
 from .api.user import LoginFailedError
 # from .location import LocationSession
 from pywaze.route_calculator import WazeRouteCalculator
@@ -93,7 +93,7 @@ class EVRechargeFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 origin = user_input[CONF_PUBLIC][CONF_ORIGIN]
                 unique_id = origin
                 resolved_origin = find_coordinates(self.hass, user_input[CONF_PUBLIC].get(CONF_ORIGIN))
-                api = EVApi(websession=async_get_clientsession(self.hass), source=source)
+                api = ExtSourceApi(websession=async_get_clientsession(self.hass), source=source)
                 httpx_client = get_async_client(self.hass)
                 # session = LocationSession()
                 self.routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
@@ -103,7 +103,7 @@ class EVRechargeFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 await api.countChargingStations(origin_coordinates)
             elif user_input.get(CONF_SINGLE) and user_input[CONF_SINGLE].get(CONF_SERIAL_NUMBER):
                 unique_id = user_input[CONF_SINGLE][CONF_SERIAL_NUMBER]
-                api = EVApi(websession=async_get_clientsession(self.hass), source=source)
+                api = ExtSourceApi(websession=async_get_clientsession(self.hass), source=source)
                 await api.station_by_id(unique_id)
             elif (
                 user_input.get(CONF_SHELL)
@@ -111,7 +111,7 @@ class EVRechargeFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 and user_input[CONF_SHELL].get(CONF_PASSWORD)
             ):
                 unique_id = user_input[CONF_SHELL][CONF_EMAIL]
-                api = EVApi(websession=async_get_clientsession(self.hass), source=source)
+                api = ExtSourceApi(websession=async_get_clientsession(self.hass), source=source)
                 user = await api.get_user(
                     email=unique_id,
                     pwd=user_input[CONF_SHELL][CONF_PASSWORD],
