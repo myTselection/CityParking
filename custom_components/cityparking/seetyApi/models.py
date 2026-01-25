@@ -11,6 +11,16 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 
 from datetime import datetime
 
+
+class Coords(BaseModel):
+    """Coordinates and bounds."""
+
+    lat: float
+    lon: float
+    bounds: Dict[str, float]
+
+
+
 class UserModel(BaseModel):
     verified: bool
     cars: List[str]
