@@ -9,17 +9,19 @@
 # City Parking Home Assistant integration
 Home Assistant custom component to provide city parking information for a desired location. This custom component has been built from the ground up to bring public site data to fetch local parking information and integrate this information into Home Assistant. This integration is built against the public websites provided by seety.co and other similar sites. Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
 
-**Main use case:**
+This integration is in no way affiliated with seety.
+
+| :warning: Please don't report issues with this integration to other platforms, they will not be able to support you. |
+| ---------------------------------------------------------------------------------------------------------------------|
+
+# Main use case:
 
 Whenever you exit your car (and not at home), check if any parking and parking card limitations apply for your current location. Warn you when you need to place your parking card or show local parking rates and cheapest free parking in neighbourhood.
 
 To detect exiting a car, an automation can be defined using sensor.smartphone_ha_activity changing from 'Automotive', or an iOS shortcut can be used to trigger when CarPlay is disconnected and a webhook request can be launched to Home Assistant to trigger an action.
 
 
-This integration is in no way affiliated with seety.
 
-| :warning: Please don't report issues with this integration to other platforms, they will not be able to support you. |
-| ---------------------------------------------------------------------------------------------------------------------|
 
 
 <p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/icon.png"/></p>
