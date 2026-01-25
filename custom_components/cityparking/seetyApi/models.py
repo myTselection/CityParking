@@ -1,6 +1,6 @@
 """Models for pydantic parsing."""
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel
 
 DateTimeISO8601 = str
 from typing import List

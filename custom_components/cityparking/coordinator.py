@@ -12,7 +12,7 @@ from homeassistant.helpers.location import find_coordinates
 from .seetyApi import SeetyApi, EmptyResponseError
 from .seetyApi.models import CityParkingModel
 # from .location import LocationSession
-from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator, WRCError
+from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 
 
 from .const import DOMAIN, UPDATE_INTERVAL,CONF_ORIGIN

@@ -81,7 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
 
-    async def async_find_nearest_service(service: ServiceCall) -> ServiceResponse:
+    async def async_find_city_parking_info_service(service: ServiceCall) -> ServiceResponse:
         httpx_client = get_async_client(hass)
         routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
 
@@ -99,7 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(
         DOMAIN,
         SERVICE_CITY_PARKING_INFO,
-        async_find_nearest_service,
+        async_find_city_parking_info_service,
         SERVICE_CITY_PARKING_INFO_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )

@@ -14,13 +14,11 @@ from aiohttp_retry import ExponentialRetry, RetryClient
 from pydantic import ValidationError
 from yarl import URL
 
-from .models import CityParkingModel, SeetyLocation, SeetyStreetComplete, SeetyStreetRules, SeetyUser, ShellChargingStation, Coords, EnecoChargingStation, NearestChargingStations, EnecoTariff
-from .user import User
+from .models import CityParkingModel, SeetyLocation, SeetyStreetComplete, SeetyStreetRules, SeetyUser, Coords
 
 import logging
 
 _LOGGER = logging.getLogger(__name__)
-_RADIUS = 100
 
 class SeetyApi:
     """Class to make API requests."""
