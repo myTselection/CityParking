@@ -1,4 +1,4 @@
-"""The shellrecharge API code."""
+"""The API code."""
 
 import logging
 import math
@@ -13,8 +13,9 @@ from aiohttp.client_exceptions import ClientError
 from aiohttp_retry import ExponentialRetry, RetryClient
 from pydantic import ValidationError
 from yarl import URL
+from typing import Optional, Dict, Any
 
-from .models import CityParkingModel, SeetyLocation, SeetyStreetComplete, SeetyStreetRules, SeetyUser, Coords
+from .models import CityParkingModel, SeetyLocationResponse, SeetyStreetComplete, SeetyStreetRules, SeetyUser, Coords
 
 import logging
 
@@ -26,7 +27,6 @@ class SeetyApi:
     def __init__(self, websession: ClientSession):
         """Initialize the session."""
         self.websession = websession
-        self.logger = logging.getLogger("evrecharge")
         self.retry_client = RetryClient(
             client_session=self.websession,
             retry_options=ExponentialRetry(attempts=3, start_timeout=5),
@@ -53,18 +53,20 @@ class SeetyApi:
         response = await self.json_get_with_retry_client(url, header=header)
 
         if pydantic.version.VERSION.startswith("1"):
-            seetyLocationInfo = SeetyLocation.parse_obj(response)
+            seetyLocationInfo = SeetyLocationResponse.parse_obj(response)
         else:
-            seetyLocationInfo = SeetyLocation.model_validate(response)
+            seetyLocationInfo = SeetyLocationResponse.model_validate(response)
 
         return seetyLocationInfo
 
-    async def getAddressSeetyInfo(self, coordinates: Coords, seetyUser: SeetyUser = None, seetyLocationInfo: SeetyLocation = None):
+    async def getAddressSeetyInfo(self, coordinates: Coords, seetyUser: SeetyUser = None, seetyLocationInfo: SeetyLocationResponse = None):
         if seetyUser is None:
             seetyUser = await self.getSeetyToken()
         if seetyLocationInfo is None:
             seetyLocationInfo = await self.getAddressForCoordinate(coordinates, seetyUser)
-        formatted_address = seetyLocationInfo.formatted_address
+        formatted_address = self.get_street_address(seetyLocationInfo)
+        if not formatted_address:
+            raise ValidationError("No street address found for the given coordinates")
         url = URL(f"https://api.cparkapp.com/street/rules/{formatted_address}/{coordinates.lat}/{coordinates.lon}")
         header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "auth-token": seetyUser.access_token, "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_get_with_retry_client(url, header=header)
@@ -91,7 +93,23 @@ class SeetyApi:
         )
         return cityParkingModel 
 
-    
+
+
+    def get_street_address(self, response:SeetyLocationResponse) -> Optional[str]:
+        """
+        Extract the formatted_address where result type is 'street_address'.
+        Returns None if not found.
+        """
+        if response.status != "OK":
+            return None
+
+        for result in response.results:
+            if "street_address" in result.types:
+                return result.formatted_address
+
+        return None
+
+
     def haversine_distance(self, lat1, lon1, lat2, lon2):
         # Radius of the Earth in kilometers
         earth_radius = 6371
@@ -129,9 +147,13 @@ class SeetyApi:
         json_response = None
         try:
             async with self.retry_client.get(url, headers=header) as response:
-                _LOGGER.debug(f"response get url {url}, status: {response.status}")
+                status = response.status
+                reason = response.reason
+                headers = dict(response.headers)
+
+                _LOGGER.debug("GET %s -> %s %s", url, status, reason)
                 if response.status == 200:
-                    result = await response.json()
+                    result = await response.json(content_type=None)
                     _LOGGER.debug(f"response get url {url}, status: {response.status}, response: {result}")
                     if result:
                         json_response = result
@@ -140,10 +162,12 @@ class SeetyApi:
                 elif response.status == 429:
                     raise RateLimitHitError("Rate limit of API has been hit")
                 else:
-                    self.logger.exception(
-                        "HTTPError %s occurred while requesting %s",
+                    _LOGGER.exception(
+                        "HTTPError %s occurred while requesting %s, reason: %s, headers: %s",
                         response.status,
-                        url
+                        url,
+                        reason,
+                        headers
                     )
         except ValidationError as err:
             raise ValidationError(err)
@@ -153,6 +177,14 @@ class SeetyApi:
             CancelledError,
             ) as err:
             # Something else failed
+            response_body = await response.text()
+            _LOGGER.exception(
+                "Error while requesting %s: %s, error: %s",
+                url,
+                response_body,
+                err,
+                exc_info=True
+            )
             raise err
         return json_response
 
@@ -163,7 +195,7 @@ class SeetyApi:
             async with self.retry_client.post(url, headers=header, json=payload) as response:
                 _LOGGER.debug(f"response post url {url}, status: {response.status}, payload: {payload}")
                 if response.status == 200:
-                    result = await response.json()
+                    result = await response.json(content_type=None)
                     _LOGGER.debug(f"response post url {url}, status: {response.status}, payload: {payload}, response: {result}")
                     if result:
                         json_response = result
@@ -172,10 +204,12 @@ class SeetyApi:
                 elif response.status == 429:
                     raise RateLimitHitError("Rate limit of API has been hit")
                 else:
-                    self.logger.exception(
-                        "HTTPError %s occurred while requesting %s",
+                    error_message = await response.text()
+                    _LOGGER.exception(
+                        "HTTPError %s occurred while requesting %s, error message: %s",
                         response.status,
                         url,
+                        error_message
                     )
         except ValidationError as err:
             _LOGGER.error(err)
@@ -185,7 +219,8 @@ class SeetyApi:
             TimeoutError,
             CancelledError,
         ) as err:
-            _LOGGER.warning(err)
+            response_body = await response.text()
+            _LOGGER.warning(f"Error while requesting {url} {response_body}, error: {err}, exc_info: {err.__traceback__}")
             # Something else failed
             raise err
         return json_response

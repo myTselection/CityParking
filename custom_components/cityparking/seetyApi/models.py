@@ -3,10 +3,9 @@
 from pydantic import BaseModel
 
 DateTimeISO8601 = str
-from typing import List
 from pydantic import BaseModel
 
-from typing import Dict, List, Tuple, Any, Optional, Union
+from typing import List, Literal, Dict, List, Tuple, Any, Optional, Union
 
 
 from datetime import datetime
@@ -87,14 +86,16 @@ class Geometry(BaseModel):
     location: Location
 
 
-class SeetyLocation(BaseModel):
+class SeetyLocationGeocodeResult(BaseModel):
     formatted_address: str
     countryCode: str
     geometry: Geometry
     types: List[str]
 
 
-
+class SeetyLocationResponse(BaseModel):
+    status: Literal["OK"]
+    results: List[SeetyLocationGeocodeResult]
 
 
 # -------------------------
@@ -154,23 +155,33 @@ class Zone(BaseModel):
     parkingPaymentProviders: List[str] = []
     displayNotPayable: Optional[bool] = False
 
-
-# -------------------------
-# Fees for Providers
-# -------------------------
-class Fees(BaseModel):
-    registration: Dict[str, float] = {}
-    session: Dict[str, float] = {}
-    notifApp: Dict[str, float] = {}
-
-
 # -------------------------
 # Description for Provider
 # -------------------------
 class ProviderDescription(BaseModel):
-    fr: Optional[str] = ""
+    fr: Optional[str] = "" 
     en: Optional[str] = ""
     nl: Optional[str] = ""
+
+
+
+
+class SessionFee(BaseModel):
+    comment: Optional[ProviderDescription] = None 
+    fixed: Optional[float] = None
+    percentage: Optional[float] = None
+    
+# -------------------------
+# Fees for Providers
+# -------------------------
+class Fees(BaseModel):
+    registration: Optional[Dict[str, float]] = {}
+    session: Optional[SessionFee] = None
+    sessionSubscription: Optional[SessionFee] = None
+    notifSms: Optional[SessionFee] = None
+    notifApp: Optional[SessionFee] = None
+
+
 
 
 # -------------------------
@@ -234,3 +245,5 @@ class CityParkingModel(BaseModel):
     user: Optional[SeetyUser] = None
     rules: Optional[SeetyStreetRules] = None
     streetComplete: Optional[SeetyStreetComplete] = None
+    origin: Optional[str] = None
+    origin_coordinates: Optional[Coords] = None

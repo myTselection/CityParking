@@ -71,6 +71,8 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
         try:
             data = await self._seetyApi.getAddressSeetyInfo(origin_coordinates)
+            data.origin = self._origin
+            data.origin_coordinates = origin_coordinates
             # _LOGGER.debug(f"nearby_stations: {data}")
         except EmptyResponseError as exc:
             _LOGGER.error(
