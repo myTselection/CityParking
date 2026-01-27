@@ -34,7 +34,8 @@ class SeetyApi:
 
     async def getSeetyToken(self):
         url = URL(f"https://api.cparkapp.com/user/")
-        response = await self.json_post_with_retry_client(url, payload={})
+        header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
+        response = await self.json_post_with_retry_client(url, payload={}, header=header)
 
         if pydantic.version.VERSION.startswith("1"):
             seetyUser = SeetyUser.parse_obj(response)
@@ -47,8 +48,8 @@ class SeetyApi:
     async def getAddressForCoordinate(self, coordinates: Coords, seetyUser: SeetyUser = None):
         if seetyUser is None:
             seetyUser = await self.getSeetyToken()
-        url = URL(f"https://api.cparkapp.com/geocode/{coordinates.latitude}/{coordinates.longitude}")
-        header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "auth-token": seetyUser.access_token, "Referer": "https://map.seety.co/"}
+        url = URL(f"https://api.cparkapp.com/geocode/{coordinates.lat}/{coordinates.lon}")
+        header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "auth-token": seetyUser.access_token, "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_get_with_retry_client(url, header=header)
 
         if pydantic.version.VERSION.startswith("1"):
@@ -64,8 +65,8 @@ class SeetyApi:
         if seetyLocationInfo is None:
             seetyLocationInfo = await self.getAddressForCoordinate(coordinates, seetyUser)
         formatted_address = seetyLocationInfo.formatted_address
-        url = URL(f"https://api.cparkapp.com/street/rules/{formatted_address}/{coordinates.latitude}/{coordinates.longitude}")
-        header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "auth-token": seetyUser.access_token, "Referer": "https://map.seety.co/"}
+        url = URL(f"https://api.cparkapp.com/street/rules/{formatted_address}/{coordinates.lat}/{coordinates.lon}")
+        header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "auth-token": seetyUser.access_token, "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_get_with_retry_client(url, header=header)
         
         if pydantic.version.VERSION.startswith("1"):
@@ -74,7 +75,7 @@ class SeetyApi:
             seetyStreetRules = SeetyStreetRules.model_validate(response)
 
         
-        url = URL(f"https://api.cparkapp.com/street/complete/{formatted_address}/{coordinates.latitude}/{coordinates.longitude}")
+        url = URL(f"https://api.cparkapp.com/street/complete/{formatted_address}/{coordinates.lat}/{coordinates.lon}")
         responseComplete = await self.json_get_with_retry_client(url, header=header)
         
         if pydantic.version.VERSION.startswith("1"):
@@ -128,7 +129,7 @@ class SeetyApi:
         json_response = None
         try:
             async with self.retry_client.get(url, headers=header) as response:
-                _LOGGER.debug(f"response url {url}, status: {response.status}")
+                _LOGGER.debug(f"response get url {url}, status: {response.status}")
                 if response.status == 200:
                     result = await response.json()
                     _LOGGER.debug(f"response get url {url}, status: {response.status}, response: {result}")
@@ -142,7 +143,7 @@ class SeetyApi:
                     self.logger.exception(
                         "HTTPError %s occurred while requesting %s",
                         response.status,
-                        url,
+                        url
                     )
         except ValidationError as err:
             raise ValidationError(err)

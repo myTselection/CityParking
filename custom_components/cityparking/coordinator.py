@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
 from .seetyApi import SeetyApi, EmptyResponseError
-from .seetyApi.models import CityParkingModel
+from .seetyApi.models import Coords, CityParkingModel
 # from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 
@@ -66,7 +66,8 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
         data: CityParkingModel = None
         
         resolved_origin = find_coordinates(self.hass, self._origin)
-        origin_coordinates = await self._routeCalculatorClient._ensure_coords(resolved_origin)
+        origin_coordinates_json = await self._routeCalculatorClient._ensure_coords(resolved_origin)
+        origin_coordinates = Coords.model_validate(origin_coordinates_json)
         _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
         try:
             data = await self._seetyApi.getAddressSeetyInfo(origin_coordinates)
