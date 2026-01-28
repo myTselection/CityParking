@@ -1,34 +1,6 @@
-toggle_session:
-  name: Toggle charger session
-  description: Start/stop a charging session.
-  target:
-    entity:
-      integration: evchargingstations
-      # Home Assistant does not support filtering on custom features
-      supported_features:
-        - climate.ClimateEntityFeature.TARGET_TEMPERATURE
-        # - shell_recharge.ShellRechargeEntityFeature.TOGGLE_SESSION
-  fields:
-    card:
-      name: Card RFID
-      description: RFID of the charge card to use for the session.
-      required: True
-      selector:
-        template:
-    toggle:
-      name: Action
-      description: Whether you want to stop or start a session.
-      example: start
-      default: start
-      required: True
-      selector:
-        select:
-          options:
-            - start
-            - stop
-find_nearest:
-    name: Find the nearest EV Charging Station
-    description: Find the EV Charging Station nearest to a given location and meeting specific criteria.
+city_parking_info:
+    name: Get parking info
+    description: Get local parking info
     fields:
         origin:
             name: Origin
@@ -37,25 +9,4 @@ find_nearest:
             example: zone.home
             selector:
               text:
-        only_eneco:
-            name: Only Eneco
-            description: Only show Eneco card supported station, default is False
-            required: False
-            example: True
-            selector:
-              boolean:
-        min_power:
-            name: Minimum power
-            description: Minimum power in kW, eg 50, default is 0
-            required: False
-            example: 50
-            default: 0
-            selector:
-              template:
-        available:
-            name: Only available station
-            description: Only get a currently available station, default is False
-            required: False
-            example: True
-            selector:
-              boolean:
+

@@ -6,7 +6,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/myTselection/CityParking.svg)](https://github.com/myTselection/CityParking/commits/master)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/myTselection/CityParking.svg)](https://github.com/myTselection/CityParking/graphs/commit-activity)
 
-# City Parking Home Assistant integration
+# 🅿️ City Parking Home Assistant integration
 Home Assistant custom component to provide city parking information for a desired location. This custom component has been built from the ground up to bring public site data to fetch local parking information and integrate this information into Home Assistant. This integration is built against the public websites provided by seety.co and other similar sites. Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
 
 This integration is in no way affiliated with seety.

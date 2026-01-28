@@ -47,7 +47,6 @@ async def async_setup_entry(
 
     coordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[Entity] = []
-    evse_id = ""
 
     if coordinator.data:
         if isinstance(coordinator, CityParkingUserDataUpdateCoordinator):
@@ -105,63 +104,6 @@ class CityParkingSensor(
         )
         self._read_coordinator_data()
 
-    def _read_coordinator_data(self) -> None:
-        """Read data from ev station."""
-        self.cityParkingInfo: CityParkingModel = self.coordinator.data
-
-        try:
-            if self.cityParkingInfo:
-                # self._attr_name = self.station.name
-                # self._attr_native_value = evse.status
-                # self._attr_icon = self._choose_icon(evse.connectors)
-                extra_data = {
-                    "TODO": "TODO"
-                    # "name": self.station.name,
-                    # "type": self.type.value,
-                    # "origin": self.origin,
-                    # "address": self.station.address.streetAndHouseNumber,
-                    # "city": self.station.address.city,
-                    # "postal_code": self.station.address.postcode,
-                    # "country": self.station.address.country,
-                    # "latitude": self.station.coordinates.lat,
-                    # "longitude": self.station.coordinates.lng,
-                    # "straight_line_distance": self.station.straight_line_distance,
-                    # "route_distance": self.station.route_distance,
-                    # "route_duration": self.station.route_duration,
-                    # "route_name": self.station.route_name,
-                    # "operator_name": self.station.ownerName,
-                    # # "suboperator_name": self.station.owner.name,
-                    # "url": self.station.url,
-                    # "facilities": ", ".join(self.station.facilities),
-                    # "available_connectors": self.station.evseSummary.available,
-                    # "number_of_connectors": self.station.evseSummary.total,
-                    # "max_speed_kWh": self.station.evseSummary.maxSpeed/1000 if self.station.evseSummary.maxSpeed else None,
-                    # "min_speed_kWh": self.station.evseSummary.minSpeed/1000 if self.station.evseSummary.minSpeed else None,
-                    # "is_unlimited": self.station.evseSummary.isUnlimited,
-                    # "is_limited": self.station.evseSummary.isLimited,
-                    # "is_unkown": self.station.evseSummary.isUnknown,
-                    # "allowed": self.station.isAllowed,
-                    # "external_id": str(self.station.id),
-                    # "evse_id": str(evse.evseId),
-                    # "status": evse.status,
-                    # "last_updated": evse.lastUpdated,
-                    # "physical_reference": evse.physicalReference,
-                    # "connector_standard": connector.standard,
-                    # "connector_type": connector.powerType,
-                    # "connector_format": connector.format,
-                    # "connector_max_power": connector.maxPower/1000 if connector.maxPower else None,
-                    # "opentwentyfourseven": self.station.isTwentyFourSeven,
-                    # "charging_costs": evse.prices.chargingCosts if evse.prices else None,
-                    # "charging_time_costs": evse.prices.chargingTimeCosts if evse.prices else None,
-                    # "start_tariff": evse.prices.startTariff if evse.prices else None,
-                    # "parking_time_costs": evse.prices.parkingTimeCosts if evse.prices else None,
-                    # "price_description": evse.prices.description if evse.prices else None,
-                    # "map_label": f"{self.station.evseSummary.available}/{self.station.evseSummary.total}{' ' + str(int(connector.maxPower/1000)) + 'kWh' if connector.maxPower else ''}",
-                }
-                
-                self._attr_extra_state_attributes = extra_data
-        except AttributeError as err:
-            _LOGGER.error(err)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -175,3 +117,7 @@ class CityParkingSensor(
         """Clean up after entity before removal."""
         _LOGGER.info("async_will_remove_from_hass " + self.entity_id)
 
+    def _read_coordinator_data(self) -> None:
+        """Read data from ev station."""
+        self.cityParkingInfo: CityParkingModel = self.coordinator.data
+        self._attr_extra_state_attributes = self.cityParkingInfo.extra_data if self.cityParkingInfo else {}

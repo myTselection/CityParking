@@ -88,6 +88,7 @@ class SeetyApi:
         cityParkingModel: CityParkingModel
         cityParkingModel = CityParkingModel(
             user = seetyUser,
+            location = seetyLocationInfo,
             rules = seetyStreetRules, 
             streetComplete = seetyStreetComplete
         )

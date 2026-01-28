@@ -243,7 +243,9 @@ class SeetyStreetComplete(BaseModel):
 
 class CityParkingModel(BaseModel):
     user: Optional[SeetyUser] = None
+    location: Optional[SeetyLocationResponse] = None
     rules: Optional[SeetyStreetRules] = None
     streetComplete: Optional[SeetyStreetComplete] = None
     origin: Optional[str] = None
     origin_coordinates: Optional[Coords] = None
+    extra_data: Optional[Dict[str, Any]] = None

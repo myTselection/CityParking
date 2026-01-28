@@ -28,14 +28,103 @@ async def async_find_city_parking_info(
     """Get station matching criteria."""
 
     resolved_origin = find_coordinates(hass,origin)
-    origin_coordinates = await routeCalculatorClient._ensure_coords(resolved_origin)
+    origin_coordinates_json = await routeCalculatorClient._ensure_coords(resolved_origin)
+    origin_coordinates = Coords.model_validate(origin_coordinates_json)
     _LOGGER.debug(f"EVCS coordinator find origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {origin}")
     
     cityParkingInfo:CityParkingModel = await seetyApi.getAddressSeetyInfo(origin_coordinates)
+    cityParkingInfo.origin = origin
+    cityParkingInfo.origin_coordinates = Coords.model_validate(origin_coordinates)
+
+
+    # self._attr_name = self.station.name
+    extract_readable_info(cityParkingInfo)
 
     return cityParkingInfo.model_dump()
 
+def extract_readable_info(cityParkingInfo):
+    rules = cityParkingInfo.rules.model_dump() if cityParkingInfo.rules else {}
+    streetComplete = cityParkingInfo.streetComplete.model_dump() if cityParkingInfo.streetComplete else {}
+    locationResults = cityParkingInfo.location.model_dump().get('results', [{}])[0] if cityParkingInfo.location else {}
+    _LOGGER.debug(f"Sensor _read_coordinator_data rules: {rules}")
+    type = rules.get('rules', {}).get('type', 'unknown')
+    zone_type = rules.get('properties', {}).get('type', 'unknown')
+    rules_complete_zone = streetComplete.get('rules', {}).get(zone_type, {})
+    address = f"{locationResults.get('formatted_address', '')}, {locationResults.get('countryCode', '')}" if locationResults else ''
+    origin_coordinates = cityParkingInfo.origin_coordinates.model_dump() if cityParkingInfo.origin_coordinates else {}
+    extra_data = {
+        "origin": cityParkingInfo.origin,
+        "latitude": origin_coordinates.get('lat', ''),
+        "longitude": origin_coordinates.get('lon', ''),
+        "type": type,
+        "time_restrictions": rules.get('rules', {}).get('hours', ""),
+        "days_restrictions": days_to_string(rules.get('rules', {}).get('days', [])),
+        "prices": prices_to_string(rules.get('rules', {}).get('prices', {})),
+        "remarks": " - ".join(rules_complete_zone.get('remarks', "")),
+        "maxStay": minutes_to_string(rules_complete_zone.get('maxStay', "")),
+        "zone": rules.get('properties', {}).get('type', 'unknown'),
+        "address": address,
+    }
+    cityParkingInfo.extra_data = extra_data
 
+
+def days_to_string(days):
+    names = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+    # normalize & sort
+    sorted_days = sorted(set(days))
+
+    # 7d/7
+    if len(sorted_days) == 7:
+        return '7d/7'
+
+    # weekend (sat + sun)
+    if len(sorted_days) == 2 and 0 in sorted_days and 6 in sorted_days:
+        return 'sat-sun'
+
+    # check consecutive
+    consecutive = all(
+        sorted_days[i] == sorted_days[i - 1] + 1
+        for i in range(1, len(sorted_days))
+    )
+
+    if consecutive:
+        return f"{names[sorted_days[0]]}-{names[sorted_days[-1]]}"
+
+    # fallback: comma-separated list
+    return ",".join(names[d] for d in sorted_days)
+
+def prices_to_string(prices: dict) -> str:
+    if not prices:
+        return ""
+
+    parts = []
+
+    for hours, price in sorted(prices.items(), key=lambda x: int(x[0])):
+        h = int(hours)
+        if h > 0:
+            parts.append(f"{price}€ ({h}h)")
+
+    return " - ".join(parts)
+
+def minutes_to_string(minutes_str: str) -> str:
+    try:
+        minutes = int(minutes_str)
+    except (ValueError, TypeError):
+        return "0m"  # fallback for invalid input
+
+    if minutes <= 0:
+        return "0m"
+
+    hours = minutes // 60
+    mins = minutes % 60
+
+    if hours == 0:
+        return f"{mins}m"
+    if mins == 0:
+        return f"{hours}h"
+
+    return f"{hours}h {mins}m"
 
 class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
     """Handles data updates for public chargers."""
@@ -69,10 +158,12 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
         origin_coordinates_json = await self._routeCalculatorClient._ensure_coords(resolved_origin)
         origin_coordinates = Coords.model_validate(origin_coordinates_json)
         _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
+
         try:
             data = await self._seetyApi.getAddressSeetyInfo(origin_coordinates)
             data.origin = self._origin
             data.origin_coordinates = origin_coordinates
+            extract_readable_info(data)
             # _LOGGER.debug(f"nearby_stations: {data}")
         except EmptyResponseError as exc:
             _LOGGER.error(
