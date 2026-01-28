@@ -121,3 +121,5 @@ class CityParkingSensor(
         """Read data from ev station."""
         self.cityParkingInfo: CityParkingModel = self.coordinator.data
         self._attr_extra_state_attributes = self.cityParkingInfo.extra_data if self.cityParkingInfo else {}
+        self._attr_native_value = self._attr_extra_state_attributes.get('zone', "unknown")
+        self._attr_icon = "mdi:parking"
