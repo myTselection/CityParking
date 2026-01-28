@@ -36,11 +36,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 - Add 'City Parking' integration via HA Settings > 'Devices and Services' > 'Integrations'
 
 
-### Setup screenshot
-
-*  ![setup config](https://github.com/myTselection/CityParking/blob/629be913c9e8f06fdbcc55040880cb83ae2fe785/setup.png) 
-
-
 # UNDER CONSTRUCTION
 
 ## Integration
