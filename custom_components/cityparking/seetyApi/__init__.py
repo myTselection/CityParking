@@ -32,7 +32,7 @@ class SeetyApi:
             retry_options=ExponentialRetry(attempts=3, start_timeout=5),
         )
 
-    async def getSeetyToken(self):
+    async def getSeetyToken(self) -> SeetyUser:
         url = URL(f"https://api.cparkapp.com/user/")
         header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_post_with_retry_client(url, payload={}, header=header)
@@ -45,7 +45,7 @@ class SeetyApi:
         return seetyUser
     
 
-    async def getAddressForCoordinate(self, coordinates: Coords, seetyUser: SeetyUser = None):
+    async def getAddressForCoordinate(self, coordinates: Coords, seetyUser: SeetyUser = None) -> SeetyLocationResponse:
         if seetyUser is None:
             seetyUser = await self.getSeetyToken()
         url = URL(f"https://api.cparkapp.com/geocode/{coordinates.lat}/{coordinates.lon}")
@@ -59,7 +59,7 @@ class SeetyApi:
 
         return seetyLocationInfo
 
-    async def getAddressSeetyInfo(self, coordinates: Coords, seetyUser: SeetyUser = None, seetyLocationInfo: SeetyLocationResponse = None):
+    async def getAddressSeetyInfo(self, coordinates: Coords, seetyUser: SeetyUser = None, seetyLocationInfo: SeetyLocationResponse = None) -> CityParkingModel:
         if seetyUser is None:
             seetyUser = await self.getSeetyToken()
         if seetyLocationInfo is None:

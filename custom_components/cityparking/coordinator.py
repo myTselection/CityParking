@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
 from .seetyApi import SeetyApi, EmptyResponseError
-from .seetyApi.models import Coords, CityParkingModel
+from .seetyApi.models import Coords, CityParkingModel, SeetyLocationResponse, SeetyUser
 # from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 
@@ -18,6 +18,7 @@ from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 from .const import DOMAIN, UPDATE_INTERVAL,CONF_ORIGIN
 _LOGGER = logging.getLogger(__name__)
 SECONDS_BETWEEN_API_CALLS = 0.5
+MAX_RESULT_AGE = 30
 
 async def async_find_city_parking_info(
         hass: HomeAssistant,
@@ -148,6 +149,10 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
         self._seetyApi = seetyApi
         self._origin = config_entry.data.get(CONF_ORIGIN)
         self._routeCalculatorClient = routeCalculatorClient
+        self._previousResults : CityParkingModel = None
+        self._previousCoordinates : Coords = None
+        self._previousResultAge = 0
+
 
     async def _async_update_data(self):
         """Fetch data from API endpoint.
@@ -160,14 +165,20 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
         resolved_origin = find_coordinates(self.hass, self._origin)
         origin_coordinates_json = await self._routeCalculatorClient._ensure_coords(resolved_origin)
         origin_coordinates = Coords.model_validate(origin_coordinates_json)
-        _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}")
-
+        _LOGGER.info(f"coordinator origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}, previousCoordinates: {self._previousCoordinates}")
+        self._previousResultAge += 1
+        if self._previousResults is not None and self._previousCoordinates == origin_coordinates and (self._previousResultAge < MAX_RESULT_AGE):
+            _LOGGER.debug("Coordinator _async_update_data using cached previousResults, no coordinate change detected.")
+            return self._previousResults
         try:
             data = await self._seetyApi.getAddressSeetyInfo(origin_coordinates)
             data.origin = self._origin
             data.origin_coordinates = origin_coordinates
             extract_readable_info(data)
             # _LOGGER.debug(f"nearby_stations: {data}")
+            self._previousResults = data
+            self._previousCoordinates = origin_coordinates
+            self._previousResultAge = 0
         except EmptyResponseError as exc:
             _LOGGER.error(
                 "EmptyResponseError occurred while fetching data for %s (%s): %s",
