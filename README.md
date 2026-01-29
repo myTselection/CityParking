@@ -42,6 +42,7 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 
 ### Sensors
 - <code>sensor.parking_[origin]</code>: sensor with public parking info at location of `origin`
+- sensor data will be updated every 5min, unless the coordinates of the origin didn't change
 - <details><summary>Sensor attributes</summary>
 
     | Attribute | Description |
