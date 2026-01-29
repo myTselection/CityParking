@@ -42,7 +42,7 @@ async def async_find_city_parking_info(
 
     return cityParkingInfo.model_dump()
 
-def extract_readable_info(cityParkingInfo):
+def extract_readable_info(cityParkingInfo: CityParkingModel):
     rules = cityParkingInfo.rules.model_dump() if cityParkingInfo.rules else {}
     streetComplete = cityParkingInfo.streetComplete.model_dump() if cityParkingInfo.streetComplete else {}
     locationResults = cityParkingInfo.location.model_dump().get('results', [{}])[0] if cityParkingInfo.location else {}
@@ -83,6 +83,9 @@ def days_to_string(days):
         return 'sat-sun'
 
     # check consecutive
+    if len(sorted_days) < 2:
+        return ",".join(names[d] for d in sorted_days)
+
     consecutive = all(
         sorted_days[i] == sorted_days[i - 1] + 1
         for i in range(1, len(sorted_days))
@@ -153,7 +156,7 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
         so entities can quickly look up their data.
         """
         data: CityParkingModel = None
-        
+        _LOGGER.debug("Coordinator _async_update_data called, origin: %s", self._origin)
         resolved_origin = find_coordinates(self.hass, self._origin)
         origin_coordinates_json = await self._routeCalculatorClient._ensure_coords(resolved_origin)
         origin_coordinates = Coords.model_validate(origin_coordinates_json)
@@ -167,25 +170,29 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
             # _LOGGER.debug(f"nearby_stations: {data}")
         except EmptyResponseError as exc:
             _LOGGER.error(
-                "Error occurred while fetching data for charger(s) %s, not found, or coordinates are invalid, %s",
+                "EmptyResponseError occurred while fetching data for %s (%s): %s",
+                self._origin,
                 resolved_origin, exc
             )
             raise UpdateFailed() from exc
         except CancelledError as exc:
             _LOGGER.error(
-                "CancelledError occurred while fetching data for charger(s) %s, %s",
+                "CancelledError occurred while fetching data for %s (%s): %s",
+                self._origin,
                 resolved_origin, exc
             )
             raise UpdateFailed() from exc
         except TimeoutError as exc:
             _LOGGER.error(
-                "TimeoutError occurred while fetching data for charger(s) %s, %s",
+                "TimeoutError occurred while fetching data for %s (%s): %s",
+                self._origin,
                 resolved_origin, exc
             )
             raise UpdateFailed() from exc
         except ClientError as exc:
             _LOGGER.error(
-                "ClientError occurred while fetching data for charger(s) %s: %s",
+                "ClientError error occurred while fetching data for %s (%s): %s",
+                self._origin,
                 resolved_origin,
                 exc,
                 exc_info=True,
@@ -193,7 +200,8 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed() from exc
         except Exception as exc:
             _LOGGER.error(
-                "Unexpected error occurred while fetching data for charger(s) %s: %s",
+                "Unexpected error occurred while fetching data for %s (%s): %s",
+                self._origin,
                 resolved_origin,
                 exc,
                 exc_info=True,
@@ -202,9 +210,9 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
 
         if data is None:
             _LOGGER.error(
-                "API returned None data for charger(s) %s",
-                resolved_origin,
-            )
-            raise UpdateFailed("API returned None data")
+                "API returned None data for %s (%s)",
+                self._origin,
+                resolved_origin)
+            raise UpdateFailed(f"API returned None data for {self._origin} ({resolved_origin})")
 
         return data

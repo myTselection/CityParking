@@ -21,41 +21,41 @@ class Coords(BaseModel):
 
 
 class UserModel(BaseModel):
-    verified: bool
-    cars: List[str]
-    mustSendMailOnEachTransaction: bool
-    proAccountActivated: bool
-    subscribedToOnboardingCampaign: bool
-    _id: str
-    time: datetime
-    lastSeen: datetime
-    confidence: int
-    lang: str
-    __v: int
+    verified: Optional[bool] = None
+    cars: Optional[List[str]] = []
+    mustSendMailOnEachTransaction: Optional[bool] = None
+    proAccountActivated: Optional[bool] = None
+    subscribedToOnboardingCampaign: Optional[bool] = None
+    _id: Optional[str] = None
+    time: Optional[datetime] = None
+    lastSeen: Optional[datetime] = None
+    confidence: Optional[int] = None
+    lang: Optional[str] = None
+    __v: Optional[int] = None
 
 class RemoteConfigsLastUpdateModel(BaseModel):
     messages: str
 
 class SeetyUser(BaseModel):
-    user: UserModel
-    lastMapUpdate: datetime
-    remoteConfigsLastUpdate: RemoteConfigsLastUpdateModel
-    access_token: str
-    expires_in: int
-    refresh_token: str
-    status: str
+    user: Optional[UserModel] = {}
+    lastMapUpdate: Optional[datetime] = None
+    remoteConfigsLastUpdate: Optional[RemoteConfigsLastUpdateModel] = {}
+    access_token: Optional[str] = None
+    expires_in: Optional[int] = None
+    refresh_token: Optional[str] = None
+    status: Optional[str] = None
 
 
 class Rules(BaseModel):
-    days: List[int]
-    prices: Dict[str, float]
-    hours: List[str]
-    type: str
+    days: Optional[List[int]] = []
+    prices: Optional[Dict[str, float]] = {}
+    hours: Optional[List[str]] = []
+    type: Optional[str] = None
     paymentPartner: Optional[str] = None
-    advantageInApp: bool
-    displayNotPayable: bool
-    overrides: Dict[str, Any]
-    forceDisplayPriceTables: bool
+    advantageInApp: Optional[bool] = False
+    displayNotPayable: Optional[bool] = False
+    overrides: Optional[Dict[str, Any]] = {}
+    forceDisplayPriceTables: Optional[bool] = False
 
 
 class Properties(BaseModel):
@@ -69,12 +69,12 @@ class Properties(BaseModel):
 
 
 class SeetyStreetRules(BaseModel):
-    rules: Rules
+    rules: Optional[Rules] = {}
     risk: Optional[int] = None
-    overrides: Dict[str, Any]
-    properties: Properties
-    twoSided: bool
-    status: str
+    overrides: Optional[Dict[str, Any]] = {}
+    properties: Optional[Properties] = {}
+    twoSided: Optional[bool] = False
+    status: Optional[str] = None
 
 
 class Location(BaseModel):
@@ -121,18 +121,18 @@ class ZoneColor(BaseModel):
 # Special Permits
 # -------------------------
 class SpecialPermits(BaseModel):
-    residents: List[str] = []
-    disabled: List[str] = []
+    residents: Optional[List[str]] = []
+    disabled: Optional[List[str]] = []
 
 
 # -------------------------
 # Summary Info
 # -------------------------
 class ZoneSummary(BaseModel):
-    days: List[int]
-    prices: Dict[str, float] = {}
+    days: Optional[List[int]] = []
+    prices: Optional[Dict[str, float]] = {}
     hours: Optional[List[str]] = None
-    type: str
+    type: Optional[str] = None
     paymentPartner: Optional[str] = None
     advantageInApp: Optional[bool] = False
     displayNotPayable: Optional[bool] = False
@@ -144,15 +144,15 @@ class ZoneSummary(BaseModel):
 # Zone Definition
 # -------------------------
 class Zone(BaseModel):
-    weight: float
-    summary: ZoneSummary
-    remarks: List[str] = []
-    specialPermits: SpecialPermits = SpecialPermits()
-    maxStay: Union[str, int] = 0
-    color: ZoneColor
-    name: str
-    table: List[ZoneTable] = []
-    parkingPaymentProviders: List[str] = []
+    weight: Optional[float] = None
+    summary: Optional[ZoneSummary] = {}
+    remarks: Optional[List[str]] = []
+    specialPermits: Optional[SpecialPermits] = {}
+    maxStay: Optional[Union[str, int]] = None
+    color: Optional[ZoneColor] = {}
+    name: Optional[str] = None
+    table: Optional[List[ZoneTable]] = []
+    parkingPaymentProviders: Optional[List[str]] = []
     displayNotPayable: Optional[bool] = False
 
 # -------------------------
@@ -167,7 +167,7 @@ class ProviderDescription(BaseModel):
 
 
 class SessionFee(BaseModel):
-    comment: Optional[ProviderDescription] = None 
+    comment: Optional[ProviderDescription] = {} 
     fixed: Optional[float] = None
     percentage: Optional[float] = None
     
@@ -176,10 +176,10 @@ class SessionFee(BaseModel):
 # -------------------------
 class Fees(BaseModel):
     registration: Optional[Dict[str, float]] = {}
-    session: Optional[SessionFee] = None
-    sessionSubscription: Optional[SessionFee] = None
-    notifSms: Optional[SessionFee] = None
-    notifApp: Optional[SessionFee] = None
+    session: Optional[SessionFee] = {}
+    sessionSubscription: Optional[SessionFee] = {}
+    notifSms: Optional[SessionFee] = {}
+    notifApp: Optional[SessionFee] = {}
 
 
 
@@ -197,9 +197,9 @@ class Subscription(BaseModel):
 # Provider Definition
 # -------------------------
 class Provider(BaseModel):
-    descriptionApp: Optional[ProviderDescription] = None
-    descriptionSMS: Optional[ProviderDescription] = None
-    fees: Optional[Fees] = None
+    descriptionApp: Optional[ProviderDescription] = {}
+    descriptionSMS: Optional[ProviderDescription] = {}
+    fees: Optional[Fees] = {}
     advantageApp: Optional[Dict[str, List[str]]] = {}
     disadvantageApp: Optional[Dict[str, List[str]]] = {}
     advantageSms: Optional[Dict[str, List[str]]] = {}
@@ -231,21 +231,21 @@ class CityInfo(BaseModel):
 # Full Response Model
 # -------------------------
 class SeetyStreetComplete(BaseModel):
-    rules: Dict[str, Zone]
+    rules: Optional[Dict[str, Zone]] = {}
     table: Optional[List[ZoneTable]] = []
-    maxStay: Union[str, int] = 0
+    maxStay: Optional[Union[str, int]] = None
     remarks: Optional[List[str]] = []
-    specialPermits: Optional[SpecialPermits] = SpecialPermits()
+    specialPermits: Optional[SpecialPermits] = {}
     providers: Optional[List[Provider]] = []
-    city: CityInfo
-    cityName: str
-    status: str
+    city: Optional[CityInfo] = {}
+    cityName: Optional[str] = None
+    status: Optional[str] = None
 
 class CityParkingModel(BaseModel):
-    user: Optional[SeetyUser] = None
-    location: Optional[SeetyLocationResponse] = None
-    rules: Optional[SeetyStreetRules] = None
-    streetComplete: Optional[SeetyStreetComplete] = None
+    user: Optional[SeetyUser] = {}
+    location: Optional[SeetyLocationResponse] = {}
+    rules: Optional[SeetyStreetRules] = {}
+    streetComplete: Optional[SeetyStreetComplete] = {}
     origin: Optional[str] = None
-    origin_coordinates: Optional[Coords] = None
-    extra_data: Optional[Dict[str, Any]] = None
+    origin_coordinates: Optional[Coords] = {}
+    extra_data: Optional[Dict[str, Any]] = {}
