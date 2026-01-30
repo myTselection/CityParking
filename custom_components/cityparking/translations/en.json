@@ -9,12 +9,12 @@
     },
     "step": {
       "user": {
+          "title": "Setup city parking info",
           "data": {
             "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country"
           },
           "name": "Public city parking info"
-        },
-        "title": "Setup city parking info"
+        }
       }
   },
   "services": {
