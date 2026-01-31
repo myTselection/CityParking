@@ -18,7 +18,7 @@ from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .seetyApi.models import CityParkingModel
+from .seetyApi.models import CityParkingModel, ParkingSensorType
 
 from . import (
     CityParkingUserDataUpdateCoordinator
@@ -50,8 +50,9 @@ async def async_setup_entry(
 
     if coordinator.data:
         if isinstance(coordinator, CityParkingUserDataUpdateCoordinator):
-            sensor: SensorEntity = CityParkingSensor(coordinator=coordinator)
-            entities.append(sensor)
+            for parkingSensorType in ParkingSensorType:
+                sensor: SensorEntity = CityParkingSensor(coordinator=coordinator, parkingSensorType=parkingSensorType)
+                entities.append(sensor)
 
         async_add_entities(entities, True)
 
@@ -73,20 +74,22 @@ class CityParkingSensor(
     def __init__(
         self,
         # evse_id: EvseId,
-        coordinator: CityParkingUserDataUpdateCoordinator
+        coordinator: CityParkingUserDataUpdateCoordinator,
+        parkingSensorType : ParkingSensorType = ParkingSensorType.ZONE
     ) -> None:
         """Initialize the Sensor."""
         super().__init__(coordinator)
         # self.evse_id = evse_id
         self.coordinator = coordinator
+        self.parkingSensorType = parkingSensorType
         self.cityParkingInfo: CityParkingModel = self.coordinator.data
         self.origin = self.cityParkingInfo.origin
         
         # self._attr_name = f"{operator} {self.station.address.streetAndNumber} {self.station.address.city}{' ' + self.station.address.country if hasattr(self.station.address, "country") else ''}"
         # self._attr_name = self.station.name
-        self._attr_name = f"Parking {self.origin}"
+        self._attr_name = f"Parking {self.origin} {self.parkingSensorType.value.capitalize()}"
         self._attr_has_entity_name = False
-        self._attr_unique_id = f"Parking {self.origin}"
+        self._attr_unique_id = f"Parking {self.origin} {self.parkingSensorType.value.capitalize()}"
         self._attr_attribution = "seety.co"
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_native_unit_of_measurement = None
@@ -121,5 +124,5 @@ class CityParkingSensor(
         """Read data from ev station."""
         self.cityParkingInfo: CityParkingModel = self.coordinator.data
         self._attr_extra_state_attributes = self.cityParkingInfo.extra_data if self.cityParkingInfo else {}
-        self._attr_native_value = self._attr_extra_state_attributes.get('zone', "unknown")
+        self._attr_native_value = self._attr_extra_state_attributes.get(self.parkingSensorType.value, "unknown")
         self._attr_icon = "mdi:parking"

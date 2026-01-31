@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
 from .seetyApi import SeetyApi, EmptyResponseError
-from .seetyApi.models import Coords, CityParkingModel, SeetyLocationResponse, SeetyUser
+from .seetyApi.models import Coords, CityParkingModel, ParkingSensorType, SeetyLocationResponse, SeetyUser
 # from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 
@@ -57,14 +57,14 @@ def extract_readable_info(cityParkingInfo: CityParkingModel):
         "origin": cityParkingInfo.origin,
         "latitude": origin_coordinates.get('lat', ''),
         "longitude": origin_coordinates.get('lon', ''),
-        "type": type,
-        "time_restrictions": rules.get('rules', {}).get('hours', ""),
-        "days_restrictions": days_to_string(rules.get('rules', {}).get('days', [])),
-        "prices": prices_to_string(rules.get('rules', {}).get('prices', {})),
+        ParkingSensorType.TYPE.value: type,
+        ParkingSensorType.TIME.value: rules.get('rules', {}).get('hours', ""),
+        ParkingSensorType.DAYS.value: days_to_string(rules.get('rules', {}).get('days', [])),
+        ParkingSensorType.PRICE.value: prices_to_string(rules.get('rules', {}).get('prices', {})),
         "remarks": " - ".join(rules_complete_zone.get('remarks', "")),
-        "maxStay": minutes_to_string(rules_complete_zone.get('maxStay', "")),
-        "zone": rules.get('properties', {}).get('type', 'unknown'),
-        "address": address,
+        ParkingSensorType.MAXSTAY.value: minutes_to_string(rules_complete_zone.get('maxStay', "")),
+        ParkingSensorType.ZONE.value: zone_type,
+        ParkingSensorType.ADDRESS.value: address,
     }
     cityParkingInfo.extra_data = extra_data
 

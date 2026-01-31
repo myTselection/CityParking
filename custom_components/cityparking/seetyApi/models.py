@@ -11,6 +11,19 @@ from typing import List, Literal, Dict, List, Tuple, Any, Optional, Union
 from datetime import datetime
 
 
+from enum import Enum
+
+class ParkingSensorType(str, Enum):
+    """Parking sensor types."""
+
+    ZONE = "zone"
+    TYPE = "type"
+    PRICE = "price"
+    DAYS = "days_restrictions"
+    TIME = "time_restrictions"
+    MAXSTAY = "maxStay"
+    ADDRESS = "address"
+
 class Coords(BaseModel):
     """Coordinates and bounds."""
 
