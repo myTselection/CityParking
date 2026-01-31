@@ -21,8 +21,9 @@ class ParkingSensorType(str, Enum):
     PRICE = "price"
     DAYS = "days_restrictions"
     TIME = "time_restrictions"
-    MAXSTAY = "maxStay"
+    MAXSTAY = "max_stay"
     ADDRESS = "address"
+    REMARKS = "remarks"
 
 class Coords(BaseModel):
     """Coordinates and bounds."""

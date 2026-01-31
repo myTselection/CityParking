@@ -82,14 +82,17 @@ class CityParkingSensor(
         # self.evse_id = evse_id
         self.coordinator = coordinator
         self.parkingSensorType = parkingSensorType
+        self.parkingSensorType_snake = " ".join(word.capitalize() for word in self.parkingSensorType.value.split("_"))  #snake_to_title(self.type.value)
         self.cityParkingInfo: CityParkingModel = self.coordinator.data
         self.origin = self.cityParkingInfo.origin
         
         # self._attr_name = f"{operator} {self.station.address.streetAndNumber} {self.station.address.city}{' ' + self.station.address.country if hasattr(self.station.address, "country") else ''}"
         # self._attr_name = self.station.name
-        self._attr_name = f"Parking {self.origin} {self.parkingSensorType.value.capitalize()}"
+        self._attr_name = f"Parking {self.origin} {self.parkingSensorType_snake}"
         self._attr_has_entity_name = False
-        self._attr_unique_id = f"Parking {self.origin} {self.parkingSensorType.value.capitalize()}"
+        self._device_unique_id =  f"Parking {self.origin}"
+        self._attr_unique_id = f"{self._device_unique_id}_{parkingSensorType.value}"
+        # store device_unique_id for device_info
         self._attr_attribution = "seety.co"
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_native_unit_of_measurement = None
@@ -100,8 +103,8 @@ class CityParkingSensor(
         #     operator = self.station.owner.name
         operator = "seety.co"
         self._attr_device_info = DeviceInfo(
-            name=self._attr_name,
-            identifiers={(DOMAIN, self._attr_unique_id)},
+            name=self._device_unique_id,
+            identifiers={(DOMAIN, self._device_unique_id)},
             entry_type=None,
             manufacturer=operator,
         )
