@@ -41,9 +41,17 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 ## Integration
 
 ### Sensors
-- <code>sensor.parking_[origin]</code>: sensor with public parking info at location of `origin`
+- <code>sensor.parking_[origin]_address</code>: sensor with adres linked to location of `origin`
+- <code>sensor.parking_[origin]_days_restrictions</code>: sensor with indication of days on which the city parking is restricted
+- <code>sensor.parking_[origin]_max_stay</code>: sensor with max amount of minutes is allowed to park during the days and time restricted schedule
+- <code>sensor.parking_[origin]_price</code>: sensor with price info for the city parking
+- <code>sensor.parking_[origin]_remarks</code>: sensor with remarks related to the the city parking
+- <code>sensor.parking_[origin]_restriction_active</code>: sensor with indication if the time and day restrictions are currenlty active. Eg if Sunday the city parking is not restricted, the restricted_active sensor will be False
+- <code>sensor.parking_[origin]_time_restrictions</code>: sensor with indication of time schedule duding which the city parking is restricted
+- <code>sensor.parking_[origin]_type</code>: sensor with type of city parking zone (eg disk, paid, free, etc)
+- <code>sensor.parking_[origin]_zone_</code>: sensor with zone name of the city parking (eg green, yellow, orange, red, blue, etc)
 - sensor data will be updated every 5min, unless the coordinates of the origin didn't change
-- <details><summary>Sensor attributes</summary>
+- <details><summary>For now all sensors have the same set of attributes</summary>
 
     | Attribute | Description |
     | --------- | ----------- |
@@ -52,13 +60,26 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
     | `latitude`  | Latitude of the origin |
     | `longitude` | Longitude of the origin |
     | `type`      | Type of the public parking, eg paid |
-    | `time restrictions`    | Time restrictions for the public parking |
-    | `days restrictions`  | Days at which the public parking is limited |
-    | `prices`    | Price for 1 or 2 hours parking |
+    | `time_restrictions`    | Time restrictions for the public parking |
+    | `days_restrictions`  | Days at which the public parking is limited |
+    | `prices`    | Price indication for 1 or 2 hours parking and amount of free parking allowed |
     | `remarkds`  | Extra info related to the public parking |
-    | `maxStay`   | Max time you can stay at the public parking |
+    | `max_stay`   | Max time you can stay at the public parking |
     | `zone`      | Name of the zone, blue/orange/red zone indication of public parking |
     | `address`   | Address for which the parking information is shown |
+    | `time_restriction_active_now` | Time restrictions are currently active |
+    | `day_restriction_active_now` | Day restrictions are currently active |
+    | `maxstay_passed_now` | Max stay has passed |
+    | `maxstay_elapsed` | Time (min) elapsed since max stay started |
+    | `maxstay_remaining` | Time (min) remaining until max stay is reached |
+    | `maxstay_start_time` | Time at which max stay started |
+    | `restriction_active` | Time and day restrictions are currently active |
+    | `last_update` | Last time data was updated |
+    | `last_restriction_check` | Last time restrictions were checked |
+    | `attribution` | Attribution for the data |
+    | `device_class` | Device class |
+    | `icon` | Icon to display |
+    | `friendly_name` | Friendly name for the sensor |
     
     </details>
     

@@ -73,8 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator: CityParkingUserDataUpdateCoordinator
     httpx_client = get_async_client(hass)
     routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
-    coordinator = CityParkingUserDataUpdateCoordinator(
-        hass, seetyApi, entry, routeCalculatorClient)
+    coordinator = CityParkingUserDataUpdateCoordinator(hass, seetyApi, entry, routeCalculatorClient)
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await coordinator.async_config_entry_first_refresh()

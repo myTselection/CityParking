@@ -13,6 +13,17 @@ from datetime import datetime
 
 from enum import Enum
 
+
+TIME_RESTRICTION_ACTIVE_NOW = "time_restriction_active_now"
+DAY_RESTRICTION_ACTIVE_NOW = "day_restriction_active_now"
+MAXSTAY_PASSED_NOW = "maxstay_passed_now"
+MAXSTAY_ELAPSED = "maxstay_elapsed"
+MAXSTAY_REMAINING = "maxstay_remaining"
+MAXSTAY_START_TIME = "maxstay_start_time"
+RESTRICTION_ACTIVE = "restriction_active"
+LAST_UPDATE = "last_update"
+LAST_RESTRICTION_CHECK = "last_restriction_check"
+
 class ParkingSensorType(str, Enum):
     """Parking sensor types."""
 
@@ -24,6 +35,8 @@ class ParkingSensorType(str, Enum):
     MAXSTAY = "max_stay"
     ADDRESS = "address"
     REMARKS = "remarks"
+    RESTRICTION_ACTIVE = "restriction_active"
+
 
 class Coords(BaseModel):
     """Coordinates and bounds."""
