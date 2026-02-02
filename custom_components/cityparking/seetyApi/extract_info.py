@@ -25,6 +25,7 @@ def extract_readable_info(cityParkingInfo: CityParkingModel):
         "origin": cityParkingInfo.origin,
         "latitude": origin_coordinates.get('lat', ''),
         "longitude": origin_coordinates.get('lon', ''),
+        "url": f"https://map.seety.co/{address}/16?lang=en",
         ParkingSensorType.TYPE.value: type,
         ParkingSensorType.TIME.value: hours_array_to_string(rules.get('rules', {}).get('hours', [])),
         ParkingSensorType.DAYS.value: days_to_string(rules.get('rules', {}).get('days', [])),
