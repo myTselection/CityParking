@@ -59,6 +59,7 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
     | `origin`    | Original origin provided during setup of the sensor |
     | `latitude`  | Latitude of the origin |
     | `longitude` | Longitude of the origin |
+    | `url`       | Seety.co url to the addresss |
     | `type`      | Type of the public parking, eg paid |
     | `time_restrictions`    | Time restrictions for the public parking |
     | `days_restrictions`  | Days at which the public parking is limited |
