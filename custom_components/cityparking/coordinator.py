@@ -39,9 +39,9 @@ async def async_find_city_parking_info(
     cityParkingInfo.origin = origin
     cityParkingInfo.origin_coordinates = Coords.model_validate(origin_coordinates)
 
-
     # self._attr_name = self.station.name
     extract_readable_info(cityParkingInfo)
+    update_restriction_status(cityParkingInfo, dt_util.now())
 
     return cityParkingInfo.model_dump()
 
