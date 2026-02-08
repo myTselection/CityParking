@@ -39,11 +39,9 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
    - This can be any HA sensor which has latitutde and longitude attributes (eg `person.jef`, `device_tracker.car`, etc). 
 
      You can also provide latitude and longitude information, eg `51.3304,3.802`. 
-     
+
      You can also just provide the full address (but I noticed the current pywaze convertion from address to lat/lon is not very accurate).
 
-
-# UNDER CONSTRUCTION
 
 ## Integration
 
@@ -91,7 +89,44 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
     
     </details>
     
-### Services / Actions
+### Services / Actions / Automation
+* Get notified when no more driving and parking restrictions apply
+   * <deails><summary>Example automation script</summary>
+
+    ```
+    alias: Parking Notification
+    description: ""
+    triggers:
+      - trigger: state
+        entity_id:
+          - sensor.smartphone_ha_activity
+        from:
+          - Automotive
+        for:
+          hours: 0
+          minutes: 0
+          seconds: 30
+      - trigger: webhook
+        allowed_methods:
+          - POST
+          - PUT
+        local_only: true
+        webhook_id: "cityparking"
+    conditions:
+      - condition: not
+        conditions:
+          - condition: zone
+            entity_id: person.jef
+            zone: zone.home
+    actions:
+      - action: script.parking_notification
+        metadata: {}
+        enabled: true
+    mode: single
+
+    ```
+
+    </details>
 * Find the public parking information to a given location.
    * ![Service find nearest](https://github.com/myTselection/CityParking/blob/b5ee28f8f46687bad39e5207f400f77a8001bdc7/service_find_nearest.png)
    * <details><summary>It will return a JSON such as example below:</summary>
