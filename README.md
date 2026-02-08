@@ -17,6 +17,8 @@ This integration is in no way affiliated with seety.
 
 <p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/icon.png"/></p>
 
+<p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/seety_supported_countries.svg"/></p>
+
 # Main use case:
 
 Whenever you exit your car (and while not at home), check if any parking and parking card limitations apply for your current location. Warn you when you need to place your parking disk or show local parking rates.
