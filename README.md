@@ -19,7 +19,7 @@ This integration is in no way affiliated with seety.
 
 # Main use case:
 
-Whenever you exit your car (and while not at home), check if any parking and parking card limitations apply for your current location. Warn you when you need to place your parking card or show local parking rates and cheapest free parking in neighbourhood.
+Whenever you exit your car (and while not at home), check if any parking and parking card limitations apply for your current location. Warn you when you need to place your parking disk or show local parking rates.
 
 To detect exiting a car, an automation can be defined using sensor.smartphone_ha_activity changing from 'Automotive', or an iOS shortcut can be used to trigger when CarPlay is disconnected and a webhook request can be launched to Home Assistant to trigger an action.
 
