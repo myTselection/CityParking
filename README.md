@@ -1225,5 +1225,3 @@ logger:
      custom_components.cityparking: debug
 ```
 
-## Example usage: TODO
-
