@@ -90,7 +90,7 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
     </details>
     
 ### Services / Actions / Automation
-* Get notified when no more driving and parking restrictions apply
+* Get notified when you stopped driving about public city parking restrictions that may apply:
    * <details><summary>Example automation script</summary>
    
       ```
