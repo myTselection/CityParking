@@ -31,10 +31,11 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 
 
 ## Installation
-- [HACS](https://hacs.xyz/): search for Carbu in the default HACS repo list or use below button to navigate directly to it on your local system and install via HACS. 
+- [HACS](https://hacs.xyz/): search for CityParking in the default HACS repo list or use below button to navigate directly to it on your local system and install via HACS. 
    -    [![Open your Home Assistant instance and open the repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg?style=flat-square)](https://my.home-assistant.io/redirect/hacs_repository/?owner=myTselection&repository=CityParking&category=integration)
 - Restart Home Assistant
 - Add 'City Parking' integration via HA Settings > 'Devices and Services' > 'Integrations'
+- In the setup configuration, provide an **origin**. This can be any HA sensor which has latitutde and longitude attributes (eg `person.jef`, `device_tracker.car`, etc). You can also provide latitude and longitude information, eg `51.3304,3.802`. You can also just provide the full address (but I noticed the current pywaze convertion from address to lat/lon is not very accurate).
 
 
 # UNDER CONSTRUCTION
