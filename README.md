@@ -54,7 +54,7 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 - <code>sensor.parking_[origin]_restriction_active</code>: sensor with indication if the time and day restrictions are currenlty active. Eg if Sunday the city parking is not restricted, the restricted_active sensor will be False
 - <code>sensor.parking_[origin]_time_restrictions</code>: sensor with indication of time schedule duding which the city parking is restricted
 - <code>sensor.parking_[origin]_type</code>: sensor with type of city parking zone (eg disk, paid, free, etc)
-- <code>sensor.parking_[origin]_zone_</code>: sensor with zone name of the city parking (eg green, yellow, orange, red, blue, etc)
+- <code>sensor.parking_[origin]_zone</code>: sensor with zone name of the city parking (eg green, yellow, orange, red, blue, etc)
 - sensor data will be updated every 5min, unless the coordinates of the origin didn't change
 - <details><summary>For now all sensors have the same set of attributes</summary>
 
