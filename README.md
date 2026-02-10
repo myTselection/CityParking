@@ -157,7 +157,16 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
                 origin: person.name
               response_variable: parking_info
             - variables:
-                extra_data: "{{parking_info.city_parking_info.extra_data}}"
+                 extra_data:
+                   zone: "{{parking_info.city_parking_info.extra_data.zone}}"
+                   type: "{{parking_info.city_parking_info.extra_data.type}}"
+                   restriction_active: "{{parking_info.city_parking_info.extra_data.restriction_active}}"
+                   address: "{{parking_info.city_parking_info.extra_data.address}}"
+                   days_restrictions: "{{parking_info.city_parking_info.extra_data.days_restrictions}}"
+                   time_restrictions: "{{parking_info.city_parking_info.extra_data.time_restrictions}}"
+                   price: "{{parking_info.city_parking_info.extra_data.price}}"
+                   remarks: "{{parking_info.city_parking_info.extra_data.remarks}}"
+                   url: "{{parking_info.city_parking_info.extra_data.url}}"
         - variables:
             critical_desired: >-
               {% if states('sensor.smartphone_ha_activity') == 'Automotive' or 
