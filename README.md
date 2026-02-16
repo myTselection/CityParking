@@ -1423,7 +1423,60 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 
 </details>
 
+### Markdown example
 
+Markdown card. Below example has a condition to only be visible is some parking restiction would apply. 
+
+Replace `sensor.parking_person_car_restriction_active` with the name of your own parking sensor.
+
+Translation of `type` is optional.
+
+```
+
+type: markdown
+content: >
+  {% set source_sensor = 'sensor.parking_person_car_restriction_active' %}
+  {% set zone = state_attr(source_sensor, 'zone') %}
+  {% set type = state_attr(source_sensor, 'type') %}
+  {% set restriction_active = state_attr(source_sensor, 'restriction_active') %}
+  {% set address = state_attr(source_sensor, 'address') %}
+  {% set days_restrictions = state_attr(source_sensor, 'days_restrictions') %}
+  {% set time_restrictions = state_attr(source_sensor, 'time_restrictions') %}
+  {% set price = state_attr(source_sensor, 'price') %}
+  {% set remarks = state_attr(source_sensor, 'remarks_src') | list %}
+  {% set url = state_attr(source_sensor, 'url') %}
+
+  {% set translations = {
+    'free': 'Gratis',
+    'paid': 'Betalend',
+    'disc': 'Blauwe schijf',
+    'Unknown': ''
+  } %}
+
+
+
+  <a href='{{ url }}'>🅿️ {{zone}}: {{translations.get(type, '')}}</a>
+
+  🚘 {{address}}
+
+  {% if restriction_active %}⚠️ {% endif %}Restricted on: {{days_restrictions}},
+  between {{time_restrictions}}
+
+  {% if price %}💶 Price: {{price}}{% endif %}
+
+  {% if remarks %} <details><summary><b>Remarks:</b></summary>
+
+  {% for remark in remarks %}  
+
+  - {{ remark }}  {% endfor %}  
+
+  </details> {% endif %}
+visibility:
+  - condition: state
+    entity: sensor.parking_person_car_restriction_active
+    state: "True"
+
+```
 
 ## Status
 Proof of concept status, still validating and extending functionalities. [Issues](https://github.com/myTselection/CityParking/issues) section in GitHub.
