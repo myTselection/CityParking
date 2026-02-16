@@ -128,7 +128,7 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
       
    </details>
    
-   * <details><summary>Example parking_notification script. Generic script with <a href="https://companion.home-assistant.io/docs/notifications/actionable-notifications/">actionable notification</a></summary>
+   * <details><summary>Example `parking_notification` script. Generic script with <a href="https://companion.home-assistant.io/docs/notifications/actionable-notifications/">actionable notification</a></summary>
    
       ```
       alias: Parking Notification
