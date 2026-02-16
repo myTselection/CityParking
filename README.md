@@ -1471,7 +1471,7 @@ content: >
 
   🚘 {{address}}
 
-  {% if restriction_active %}⚠️ {% endif %}Restricted on: {{days_restrictions}},
+  {% if restriction_active == 'True' %}⚠️ {% endif %}Restricted on: {{days_restrictions}},
   between {{time_restrictions}}
 
   {% if price %}💶 Price: {{price}}{% endif %}
