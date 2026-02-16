@@ -253,13 +253,25 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
                     - condition: template
                       value_template: "{{wait.trigger == None}}"
                   sequence:
-                    - metadata: {}
-                      data:
-                        message: clear_notification
-                        data:
-                          tag: "{{notification_tag}}"
-                      action: notify.notify
-                    - stop: timeout
+                     - continue_on_error: true
+                       data:
+                         title: "{{title}}"
+                         message: "{{message}}"
+                         data:
+                           push:
+                             sound:
+                               name: default
+                               critical: "{{critical_desired}}"
+                           url: "{{extra_data.url}}"
+                           group: "{{notification_tag}}"
+                           tag: "{{notification_tag}}"
+                           action_data:
+                             latitude: "{{state_attr('person.car','latitude')}}"
+                             longitude: "{{state_attr('person.car','longitude')}}"
+                             second_latitude: "{{extra_data.latitude}}"
+                             second_longitude: "{{extra_data.longitude}}"
+                       action: notify.notify
+                     - stop: timeout
             - variables:
                 option: "{{ wait.trigger.event.data.action }}"
                 selected_entity: |
