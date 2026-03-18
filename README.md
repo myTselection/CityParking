@@ -7,7 +7,7 @@
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/myTselection/CityParking.svg)](https://github.com/myTselection/CityParking/graphs/commit-activity)
 
 # 🅿️ City Parking Home Assistant integration
-Home Assistant custom component to provide public city parking information for a desired location. This custom component has been built from the ground up to bring public site data to fetch local parking information and integrate this information into Home Assistant. This integration is built against the public websites provided by [seety.co](https://seety.co/) and [seety Maps](https://map.seety.co/?lang=en). (and maybe other similar sites in future). Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
+Home Assistant custom integration to provide public street city parking information for any location. This custom component has been built from the ground up to fetch public parking information and integrate this information into Home Assistant. This integration is built against the public websites provided by [seety.co](https://seety.co/) and [seety Maps](https://map.seety.co/?lang=en). (and maybe other similar sites such as [Parkopedia](https://en.parkopedia.com/) in future). Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
 
 This integration is in no way affiliated with seety.
 
@@ -90,7 +90,7 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
     </details>
     
 ### Services / Actions / Automation
-* Get notified when no more driving and parking restrictions apply
+* Get notified when you stopped driving about public city parking restrictions that may apply:
    * <details><summary>Example automation script</summary>
    
       ```
@@ -123,6 +123,237 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
         metadata: {}
         enabled: true
       mode: single
+      
+      ```
+      
+   </details>
+   
+   * <details><summary>Example <code>parking_notification</code> script. Generic script with <a href="https://companion.home-assistant.io/docs/notifications/actionable-notifications/">actionable notification</a></summary>
+   
+      ```
+      alias: Parking Notification
+      description: "Interactive parking notification, if 'source_sensor' var is set, the parking info of that sensor will be used, else the parking info of person.name will be fetched."
+      icon: mdi:parking
+      sequence:
+        - if:
+            - condition: template
+              value_template: "{{ source_sensor != unavailable}}"
+          then:
+            - variables:
+                extra_data:
+                  zone: "{{state_attr(source_sensor, 'zone')}}"
+                  type: "{{state_attr(source_sensor, 'type')}}"
+                  restriction_active: "{{state_attr(source_sensor, 'restriction_active')}}"
+                  address: "{{state_attr(source_sensor, 'address')}}"
+                  days_restrictions: "{{state_attr(source_sensor, 'days_restrictions')}}"
+                  time_restrictions: "{{state_attr(source_sensor, 'time_restrictions')}}"
+                  price: "{{state_attr(source_sensor, 'price')}}"
+                  remarks: "{{state_attr(source_sensor, 'remarks')}}"
+                  url: "{{state_attr(source_sensor, 'url')}}"
+          else:
+            - action: cityparking.city_parking_info
+              metadata: {}
+              data:
+                origin: person.name
+              response_variable: parking_info
+            - variables:
+                 extra_data:
+                   zone: "{{parking_info.city_parking_info.extra_data.zone}}"
+                   type: "{{parking_info.city_parking_info.extra_data.type}}"
+                   restriction_active: "{{parking_info.city_parking_info.extra_data.restriction_active}}"
+                   address: "{{parking_info.city_parking_info.extra_data.address}}"
+                   days_restrictions: "{{parking_info.city_parking_info.extra_data.days_restrictions}}"
+                   time_restrictions: "{{parking_info.city_parking_info.extra_data.time_restrictions}}"
+                   price: "{{parking_info.city_parking_info.extra_data.price}}"
+                   remarks: "{{parking_info.city_parking_info.extra_data.remarks}}"
+                   url: "{{parking_info.city_parking_info.extra_data.url}}"
+        - variables:
+            critical_desired: >-
+              {% if states('sensor.smartphone_ha_activity') == 'Automotive' or 
+              (trigger is defined and trigger.event is defined and
+              trigger.event.data.triggerSource == 'carPlay') %}1{% else %}0{% endif %}
+            notification_tag: parking
+            title: >-
+              🅿️ {{extra_data.zone}} ({{extra_data.type}}) Active:
+              {{extra_data.restriction_active}}
+            message: >-
+              {{extra_data.type}} ({{extra_data.zone}}): {{extra_data.address}}
+      
+              {% if extra_data.restriction_active %}⚠️{% endif %}Restricted on:
+              {{extra_data.days_restrictions}}, between
+              {{extra_data.time_restrictions}}
+      
+              Price: {{extra_data.price}}
+      
+              Remarks: {{extra_data.remarks}}
+            actions_uri:
+              - action: URI
+                title: Map parking 🅿️
+                uri: "{{extra_data.url}}"
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            action_map_car:
+              - action: map_car
+                title: Map car 🗺️
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            action_map_traffic:
+              - action: map_traffic
+                title: Map traffic 🛣️
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            action_refresh_car_data:
+              - action: refresh_car_data
+                title: Refresh car data 🔄️
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            actions_desired: >-
+              {{actions_uri + action_map_car + action_map_traffic + action_refresh_car_data}}
+        - choose: []
+          default:
+            - continue_on_error: true
+              data:
+                title: "{{title}}"
+                message: "{{message}}"
+                data:
+                  push:
+                    sound:
+                      name: default
+                      critical: "{{critical_desired}}"
+                  url: "{{extra_data.url}}"
+                  group: "{{notification_tag}}"
+                  tag: "{{notification_tag}}"
+                  action_data:
+                    latitude: "{{state_attr('person.car','latitude')}}"
+                    longitude: "{{state_attr('person.car','longitude')}}"
+                    second_latitude: "{{extra_data.latitude}}"
+                    second_longitude: "{{extra_data.longitude}}"
+                  actions: "{{actions_desired}}"
+              action: notify.notify
+            - wait_for_trigger:
+                - event_type: mobile_app_notification_action
+                  trigger: event
+              timeout:
+                hours: 0
+                minutes: 0
+                seconds: 30
+                milliseconds: 0
+              continue_on_timeout: true
+              enabled: true
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{wait.trigger == None}}"
+                  sequence:
+                     - continue_on_error: true
+                       data:
+                         title: "{{title}}"
+                         message: "{{message}}"
+                         data:
+                           push:
+                             sound:
+                               name: default
+                               critical: "{{critical_desired}}"
+                           url: "{{extra_data.url}}"
+                           group: "{{notification_tag}}"
+                           tag: "{{notification_tag}}"
+                           action_data:
+                             latitude: "{{state_attr('person.car','latitude')}}"
+                             longitude: "{{state_attr('person.car','longitude')}}"
+                             second_latitude: "{{extra_data.latitude}}"
+                             second_longitude: "{{extra_data.longitude}}"
+                       action: notify.notify
+                     - stop: timeout
+            - variables:
+                option: "{{ wait.trigger.event.data.action }}"
+                selected_entity: |
+                  {{
+                    {'map_traffic': 'automation.traffic_notificaiton',
+                     'map_car': 'person.car',
+                     'refresh_car_data': 'script.refresh_car_data'
+                     }[wait.trigger.event.data.action] }}
+                entity_type: "{{selected_entity.split('.')[0] }}"
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'sensor' or entity_type == 'person' }}"
+                  sequence:
+                    - data:
+                        message: >-
+                          {{option}}: {{state_attr(selected_entity,'thoroughfare')}}
+                          {{state_attr(selected_entity,'sub_thoroughfare')}},
+                          {{state_attr(selected_entity,'locality')}}
+                        data:
+                          push:
+                            sound:
+                              name: default
+                              critical: "{{critical_desired}}"
+                          group: person
+                          tag: person
+                          action_data:
+                            latitude: "{{state_attr('person.car','latitude')}}"
+                            longitude: "{{state_attr('person.car','longitude')}}"
+                            second_latitude: "{{extra_data.latitude}}"
+                            second_longitude: "{{extra_data.longitude}}"
+                          url: /lovelace/parking
+                      action: notify.notify
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'light' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: light.toggle
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'switch' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: switch.toggle
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'script' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: script.turn_on
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'automation' }}"
+                  sequence:
+                    - data:
+                        skip_condition: true
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: automation.trigger
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'lock' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: lock.lock
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'unlock' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity|replace('unlock', 'lock')}}"
+                      action: lock.unlock
       
       ```
       
@@ -1204,7 +1435,60 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 
 </details>
 
+### Markdown example
 
+Markdown card. Below example has a condition to only be visible is some parking restiction would apply. 
+
+Replace `sensor.parking_person_car_restriction_active` with the name of your own parking sensor.
+
+Translation of `type` is optional.
+
+```
+
+type: markdown
+content: >
+  {% set source_sensor = 'sensor.parking_person_car_restriction_active' %}
+  {% set zone = state_attr(source_sensor, 'zone') %}
+  {% set type = state_attr(source_sensor, 'type') %}
+  {% set restriction_active = state_attr(source_sensor, 'restriction_active') %}
+  {% set address = state_attr(source_sensor, 'address') %}
+  {% set days_restrictions = state_attr(source_sensor, 'days_restrictions') %}
+  {% set time_restrictions = state_attr(source_sensor, 'time_restrictions') %}
+  {% set price = state_attr(source_sensor, 'price') %}
+  {% set remarks = state_attr(source_sensor, 'remarks_src') | list %}
+  {% set url = state_attr(source_sensor, 'url') %}
+
+  {% set translations = {
+    'free': 'Gratis',
+    'paid': 'Betalend',
+    'disc': 'Blauwe schijf',
+    'Unknown': ''
+  } %}
+
+
+
+  <a href='{{ url }}'>🅿️ {{zone}}: {{translations.get(type, '')}}</a>
+
+  🚘 {{address}}
+
+  {% if restriction_active == 'True' %}⚠️ {% endif %}Restricted on: {{days_restrictions}},
+  between {{time_restrictions}}
+
+  {% if price %}💶 Price: {{price}}{% endif %}
+
+  {% if remarks %} <details><summary><b>Remarks:</b></summary>
+
+  {% for remark in remarks %}  
+
+  - {{ remark }}  {% endfor %}  
+
+  </details> {% endif %}
+visibility:
+  - condition: state
+    entity: sensor.parking_person_car_restriction_active
+    state: "True"
+
+```
 
 ## Status
 Proof of concept status, still validating and extending functionalities. [Issues](https://github.com/myTselection/CityParking/issues) section in GitHub.
