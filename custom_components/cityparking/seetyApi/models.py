@@ -86,13 +86,13 @@ class Rules(BaseModel):
 
 
 class Properties(BaseModel):
-    type: str
-    color: str
-    dotted: bool
+    type: Optional[str] = None
+    color: Optional[str] = None
+    dotted: Optional[bool] = None
     closest: Tuple[float, float]
-    closestDist: float
-    maxDistToPay: float
-    city: str
+    closestDist: Optional[float] = None
+    maxDistToPay: Optional[float] = None
+    city: Optional[str] = None
 
 
 class SeetyStreetRules(BaseModel):
@@ -114,9 +114,9 @@ class Geometry(BaseModel):
 
 
 class SeetyLocationGeocodeResult(BaseModel):
-    formatted_address: str
-    countryCode: str
-    geometry: Geometry
+    formatted_address: Optional[str] = None
+    countryCode: Optional[str] = None
+    geometry: Optional[Geometry] = None
     types: List[str]
 
 
