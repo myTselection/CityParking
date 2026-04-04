@@ -20,7 +20,7 @@ from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 from .const import DOMAIN, UPDATE_INTERVAL,CONF_ORIGIN
 _LOGGER = logging.getLogger(DOMAIN)
 SECONDS_BETWEEN_API_CALLS = 0.5
-MAX_RESULT_AGE = 30
+MAX_RESULT_AGE = 3000
 
 async def async_find_city_parking_info(
         hass: HomeAssistant,
@@ -129,7 +129,7 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
 
         self._previousResultAge += 1
         if self._previousResults is not None and self._previousCoordinates == origin_coordinates and (self._previousResultAge < MAX_RESULT_AGE):
-            _LOGGER.debug("Coordinator _async_update_data using cached previousResults, no coordinate change detected.")
+            _LOGGER.debug(f"Coordinator _async_update_data using cached previousResults, no coordinate change detected. previousResultAge: {self._previousResultAge}, MAX_RESULT_AGE: {MAX_RESULT_AGE}, origin_coordinates: {origin_coordinates}, resolved_origin: {resolved_origin}, origin: {self._origin}, previousCoordinates: {self._previousCoordinates}")
             # extend / update seety info with actual restriction status
             update_restriction_status(self._previousResults, self._previousUpdate)
             return self._previousResults

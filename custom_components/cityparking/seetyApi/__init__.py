@@ -23,6 +23,9 @@ _LOGGER = logging.getLogger(__name__)
 
 class SeetyApi:
     """Class to make API requests."""
+    # store the seety user token for reuse in different API calls
+    # the token seems to be valid for a long time and reduces the number of API calls needed to get the token for each request
+    _seety_user_token: Optional[SeetyUser] = None
 
     def __init__(self, websession: ClientSession):
         """Initialize the session."""
@@ -31,8 +34,14 @@ class SeetyApi:
             client_session=self.websession,
             retry_options=ExponentialRetry(attempts=3, start_timeout=5),
         )
-
+    def clearSeetyUserToken(self):
+        """Clear the cached Seety user token."""
+        self._seety_user_token = None
     async def getSeetyToken(self) -> SeetyUser:
+
+        if self._seety_user_token is not None:
+            _LOGGER.debug("Reusing existing Seety user token")
+            return self._seety_user_token
         url = URL(f"https://api.cparkapp.com/user/")
         header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_post_with_retry_client(url, payload={}, header=header)
@@ -163,6 +172,7 @@ class SeetyApi:
                 elif response.status == 429:
                     raise RateLimitHitError("Rate limit of API has been hit")
                 else:
+                    self.clearSeetyUserToken()
                     _LOGGER.exception(
                         "HTTPError %s occurred while requesting %s, reason: %s, headers: %s",
                         response.status,
@@ -171,12 +181,14 @@ class SeetyApi:
                         headers
                     )
         except ValidationError as err:
+            self.clearSeetyUserToken()
             raise ValidationError(err)
         except (
             ClientError,
             TimeoutError,
             CancelledError,
             ) as err:
+            self.clearSeetyUserToken()
             # Something else failed
             response_body = await response.text()
             _LOGGER.exception(
@@ -205,6 +217,8 @@ class SeetyApi:
                 elif response.status == 429:
                     raise RateLimitHitError("Rate limit of API has been hit")
                 else:
+                    self.clearSeetyUserToken()
+
                     error_message = await response.text()
                     _LOGGER.exception(
                         "HTTPError %s occurred while requesting %s, error message: %s",
@@ -213,6 +227,7 @@ class SeetyApi:
                         error_message
                     )
         except ValidationError as err:
+            self.clearSeetyUserToken()
             _LOGGER.error(err)
             raise ValidationError(err)
         except (
@@ -220,6 +235,7 @@ class SeetyApi:
             TimeoutError,
             CancelledError,
         ) as err:
+            self.clearSeetyUserToken()
             response_body = await response.text()
             _LOGGER.warning(f"Error while requesting {url} {response_body}, error: {err}, exc_info: {err.__traceback__}")
             # Something else failed
