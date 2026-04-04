@@ -26,7 +26,7 @@ from pywaze.route_calculator import WazeRouteCalculator
 from .const import DOMAIN, CONF_ORIGIN
 import logging
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(DOMAIN)
 
 CITYPARKING_SCHEMA = vol.Schema(
     {

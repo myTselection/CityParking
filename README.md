@@ -7,7 +7,7 @@
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/myTselection/CityParking.svg)](https://github.com/myTselection/CityParking/graphs/commit-activity)
 
 # 🅿️ City Parking Home Assistant integration
-Home Assistant custom component to provide public city parking information for a desired location. This custom component has been built from the ground up to bring public site data to fetch local parking information and integrate this information into Home Assistant. This integration is built against the public websites provided by seety.co (and maybe other similar sites in future). Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
+Home Assistant custom integration to provide public street city parking information for any location. This custom component has been built from the ground up to fetch public parking information and integrate this information into Home Assistant. This integration is built against the public websites provided by [seety.co](https://seety.co/) and [seety Maps](https://map.seety.co/?lang=en). (and maybe other similar sites such as [Parkopedia](https://en.parkopedia.com/) in future). Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
 
 This integration is in no way affiliated with seety.
 
@@ -17,9 +17,11 @@ This integration is in no way affiliated with seety.
 
 <p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/icon.png"/></p>
 
-# Main use case:
+<p align="center"><img src="https://raw.githubusercontent.com/myTselection/CityParking/master/seety_supported_countries.svg"/></p>
 
-Whenever you exit your car (and while not at home), check if any parking and parking card limitations apply for your current location. Warn you when you need to place your parking card or show local parking rates and cheapest free parking in neighbourhood.
+# Main use case
+
+Whenever you exit your car (and while not at home), check if any public city parking limitations apply for your current location. Warn you when you need to place your parking disk or show local parking rates.
 
 To detect exiting a car, an automation can be defined using sensor.smartphone_ha_activity changing from 'Automotive', or an iOS shortcut can be used to trigger when CarPlay is disconnected and a webhook request can be launched to Home Assistant to trigger an action.
 
@@ -28,15 +30,18 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 
 
 
-
 ## Installation
-- [HACS](https://hacs.xyz/): search for Carbu in the default HACS repo list or use below button to navigate directly to it on your local system and install via HACS. 
+- [HACS](https://hacs.xyz/): search for CityParking in the default HACS repo list or use below button to navigate directly to it on your local system and install via HACS. 
    -    [![Open your Home Assistant instance and open the repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg?style=flat-square)](https://my.home-assistant.io/redirect/hacs_repository/?owner=myTselection&repository=CityParking&category=integration)
 - Restart Home Assistant
 - Add 'City Parking' integration via HA Settings > 'Devices and Services' > 'Integrations'
+- In the setup configuration, provide an **origin**. 
+   - This can be any HA sensor which has latitutde and longitude attributes (eg `person.jef`, `device_tracker.car`, etc). 
 
+     You can also provide latitude and longitude information, eg `51.3304,3.802`. 
 
-# UNDER CONSTRUCTION
+     You can also just provide the full address (but I noticed the current pywaze convertion from address to lat/lon is not very accurate).
+
 
 ## Integration
 
@@ -49,8 +54,8 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
 - <code>sensor.parking_[origin]_restriction_active</code>: sensor with indication if the time and day restrictions are currenlty active. Eg if Sunday the city parking is not restricted, the restricted_active sensor will be False
 - <code>sensor.parking_[origin]_time_restrictions</code>: sensor with indication of time schedule duding which the city parking is restricted
 - <code>sensor.parking_[origin]_type</code>: sensor with type of city parking zone (eg disk, paid, free, etc)
-- <code>sensor.parking_[origin]_zone_</code>: sensor with zone name of the city parking (eg green, yellow, orange, red, blue, etc)
-- sensor data will be updated every 5min, unless the coordinates of the origin didn't change
+- <code>sensor.parking_[origin]_zone</code>: sensor with zone name of the city parking (eg green, yellow, orange, red, blue, etc)
+- Sensor data will be updated every 5min, unless the coordinates of the origin didn't change. The attribute `time_restriction_active_now`, `day_restriction_active_now`, `maxstay_*` and `restriction_active` will always be updated every 5min. These indicate if the restrictions currently apply.
 - <details><summary>For now all sensors have the same set of attributes</summary>
 
     | Attribute | Description |
@@ -84,251 +89,278 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
     
     </details>
     
-### Services / Actions / Automations
-* Get a notification when drive ended and some restrictions would be active
-  * <details><summary>Example automation script</summary>
-    
-    ```
-    alias: Parking Notification Automotive
-    description: ""
-    triggers:
+### Services / Actions / Automation
+* Get notified when you stopped driving about public city parking restrictions that may apply:
+   * <details><summary>Example automation script</summary>
+   
+      ```
+      alias: Parking Notification
+      description: ""
+      triggers:
       - trigger: state
         entity_id:
-          - sensor.phone_activity
+          - sensor.smartphone_ha_activity
         from:
           - Automotive
         for:
           hours: 0
           minutes: 0
           seconds: 30
-    conditions:
+      - trigger: webhook
+        allowed_methods:
+          - POST
+          - PUT
+        local_only: true
+        webhook_id: "cityparking"
+      conditions:
       - condition: not
         conditions:
           - condition: zone
             entity_id: person.jef
             zone: zone.home
-    actions:
+      actions:
       - action: script.parking_notification
         metadata: {}
         enabled: true
-    mode: single
-
-    ```
-
-    </details>
-* Send a notification with city parking information
-  * <details><summary>Example action script</summary>
-    
-    ```
-    sequence:
-      - action: cityparking.city_parking_info
-        metadata: {}
-        data:
-          origin: person.jef
-        response_variable: parking_info
-      - variables:
-          extra_data: "{{parking_info.city_parking_info.extra_data}}"
-          critical_desired: >-
-            {% if states('sensor.phone_activity') == 'Automotive' or 
-            (trigger is defined and trigger.event is defined and
-            trigger.event.data.triggerSource == 'carPlay') %}1{% else %}0{% endif %}
-          notification_tag: parking
-          title: >-
-            🅿️ {{extra_data.zone}} ({{extra_data.type}}) Active:
-            {{extra_data.restriction_active}}
-          message: >-
-            {{extra_data.type}} ({{extra_data.zone}}): {{extra_data.address}}
-
-            {% if extra_data.restriction_active %}⚠️{% endif %}Restricted on:
-            {{extra_data.days_restrictions}}, between
-            {{extra_data.time_restrictions}}
-
-            Price: {{extra_data.price}}
-
-            Remarks: {{extra_data.remarks}}
-          actions_uri:
-            - action: URI
-              title: Kaart parking 🅿️
-              uri: "{{extra_data.url}}"
-              activationMode: background
-              authenticationRequired: true
-              destructive: false
-              behavior: default
-          action_lock:
-            - action: lock
-              title: Lock car 🔐
-              activationMode: background
-              authenticationRequired: true
-              destructive: true
-              behavior: default
-          action_unlock:
-            - action: unlock
-              title: Unlock car 🔒
-              activationMode: background
-              authenticationRequired: true
-              destructive: true
-              behavior: default
-          action_map_car:
-            - action: map_car
-              title: Map car 🗺️
-              activationMode: background
-              authenticationRequired: true
-              destructive: false
-              behavior: default
-          action_map_traffic:
-            - action: map_traffic
-              title: Traffic 🛣️
-              activationMode: background
-              authenticationRequired: true
-              destructive: false
-              behavior: default
-          action_refresh_car_data:
-            - action: refresh_car_data
-              title: Refresh car data 🔄️
-              activationMode: background
-              authenticationRequired: true
-              destructive: false
-              behavior: default
-          actions_desired: >-
-            {{actions_uri + action_lock + action_unlock + action_map_car +
-            action_map_traffic + action_refresh_car_data}}
-      - choose: []
-        default:
-          - continue_on_error: true
-            data:
-              title: "{{title}}"
-              message: "{{message}}"
+      mode: single
+      
+      ```
+      
+   </details>
+   
+   * <details><summary>Example <code>parking_notification</code> script. Generic script with <a href="https://companion.home-assistant.io/docs/notifications/actionable-notifications/">actionable notification</a></summary>
+   
+      ```
+      alias: Parking Notification
+      description: "Interactive parking notification, if 'source_sensor' var is set, the parking info of that sensor will be used, else the parking info of person.name will be fetched."
+      icon: mdi:parking
+      sequence:
+        - if:
+            - condition: template
+              value_template: "{{ source_sensor != unavailable}}"
+          then:
+            - variables:
+                extra_data:
+                  zone: "{{state_attr(source_sensor, 'zone')}}"
+                  type: "{{state_attr(source_sensor, 'type')}}"
+                  restriction_active: "{{state_attr(source_sensor, 'restriction_active')}}"
+                  address: "{{state_attr(source_sensor, 'address')}}"
+                  days_restrictions: "{{state_attr(source_sensor, 'days_restrictions')}}"
+                  time_restrictions: "{{state_attr(source_sensor, 'time_restrictions')}}"
+                  price: "{{state_attr(source_sensor, 'price')}}"
+                  remarks: "{{state_attr(source_sensor, 'remarks')}}"
+                  url: "{{state_attr(source_sensor, 'url')}}"
+          else:
+            - action: cityparking.city_parking_info
+              metadata: {}
               data:
-                push:
-                  sound:
-                    name: default
-                    critical: "{{critical_desired}}"
-                url: "{{extra_data.url}}"
-                group: "{{notification_tag}}"
-                tag: "{{notification_tag}}"
-                action_data:
-                  latitude: "{{state_attr('person.car','latitude')}}"
-                  longitude: "{{state_attr('person.car','longitude')}}"
-                  second_latitude: "{{extra_data.latitude}}"
-                  second_longitude: "{{extra_data.longitude}}"
-                actions: "{{actions_desired}}"
-            action: notify.iphone_notification_group
-          - wait_for_trigger:
-              - event_type: mobile_app_notification_action
-                trigger: event
-            timeout:
-              hours: 0
-              minutes: 0
-              seconds: 30
-              milliseconds: 0
-            continue_on_timeout: true
-            enabled: true
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{wait.trigger == None}}"
-                sequence:
-                  - metadata: {}
-                    data:
-                      message: clear_notification
-                      data:
-                        tag: "{{notification_tag}}"
-                    action: notify.iphone_notification_group
-                  - stop: timeout
-          - variables:
-              option: "{{ wait.trigger.event.data.action }}"
-              selected_entity: |
-                {{
-                  {'lock': 'lock.car_door_lock',
-                  'unlock': 'unlock.car_door_lock',    
-                  'map_traffic': 'automation.traffic_notification',
-                  'map_car': 'person.car',
-                  'refresh_car_data': 'script.refresh_car_data'
-                  }[wait.trigger.event.data.action] }}
-              entity_type: "{{selected_entity.split('.')[0] }}"
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ entity_type == 'sensor' or entity_type == 'person' }}"
-                sequence:
-                  - data:
-                      message: >-
-                        {{option}}: {{state_attr(selected_entity,'thoroughfare')}}
-                        {{state_attr(selected_entity,'sub_thoroughfare')}},
-                        {{state_attr(selected_entity,'locality')}}
-                      data:
-                        push:
-                          sound:
-                            name: default
-                            critical: "{{critical_desired}}"
-                        group: person
-                        tag: person
-                        action_data:
-                          latitude: "{{state_attr('person.car','latitude')}}"
-                          longitude: "{{state_attr('person.car','longitude')}}"
-                          second_latitude: "{{extra_data.latitude}}"
-                          second_longitude: "{{extra_data.longitude}}"
-                        url: /lovelace/parking
-                    action: notify.iphone_notification_group
-              - conditions:
-                  - condition: template
-                    value_template: "{{ entity_type == 'light' }}"
-                sequence:
-                  - data: {}
-                    target:
-                      entity_id: "{{selected_entity}}"
-                    action: light.toggle
-              - conditions:
-                  - condition: template
-                    value_template: "{{ entity_type == 'switch' }}"
-                sequence:
-                  - data: {}
-                    target:
-                      entity_id: "{{selected_entity}}"
-                    action: switch.toggle
-              - conditions:
-                  - condition: template
-                    value_template: "{{ entity_type == 'script' }}"
-                sequence:
-                  - data: {}
-                    target:
-                      entity_id: "{{selected_entity}}"
-                    action: script.turn_on
-              - conditions:
-                  - condition: template
-                    value_template: "{{ entity_type == 'automation' }}"
-                sequence:
-                  - data:
-                      skip_condition: true
-                    target:
-                      entity_id: "{{selected_entity}}"
-                    action: automation.trigger
-              - conditions:
-                  - condition: template
-                    value_template: "{{ entity_type == 'lock' }}"
-                sequence:
-                  - data: {}
-                    target:
-                      entity_id: "{{selected_entity}}"
-                    action: lock.lock
-              - conditions:
-                  - condition: template
-                    value_template: "{{ entity_type == 'unlock' }}"
-                sequence:
-                  - data: {}
-                    target:
-                      entity_id: "{{selected_entity|replace('unlock', 'lock')}}"
-                    action: lock.unlock
-    alias: Parking Notification
-    description: ""
-    icon: mdi:parking
-
-
-    ```
-
-    </details>
+                origin: person.name
+              response_variable: parking_info
+            - variables:
+                 extra_data:
+                   zone: "{{parking_info.city_parking_info.extra_data.zone}}"
+                   type: "{{parking_info.city_parking_info.extra_data.type}}"
+                   restriction_active: "{{parking_info.city_parking_info.extra_data.restriction_active}}"
+                   address: "{{parking_info.city_parking_info.extra_data.address}}"
+                   days_restrictions: "{{parking_info.city_parking_info.extra_data.days_restrictions}}"
+                   time_restrictions: "{{parking_info.city_parking_info.extra_data.time_restrictions}}"
+                   price: "{{parking_info.city_parking_info.extra_data.price}}"
+                   remarks: "{{parking_info.city_parking_info.extra_data.remarks}}"
+                   url: "{{parking_info.city_parking_info.extra_data.url}}"
+        - variables:
+            critical_desired: >-
+              {% if states('sensor.smartphone_ha_activity') == 'Automotive' or 
+              (trigger is defined and trigger.event is defined and
+              trigger.event.data.triggerSource == 'carPlay') %}1{% else %}0{% endif %}
+            notification_tag: parking
+            title: >-
+              🅿️ {{extra_data.zone}} ({{extra_data.type}}) Active:
+              {{extra_data.restriction_active}}
+            message: >-
+              {{extra_data.type}} ({{extra_data.zone}}): {{extra_data.address}}
+      
+              {% if extra_data.restriction_active %}⚠️{% endif %}Restricted on:
+              {{extra_data.days_restrictions}}, between
+              {{extra_data.time_restrictions}}
+      
+              Price: {{extra_data.price}}
+      
+              Remarks: {{extra_data.remarks}}
+            actions_uri:
+              - action: URI
+                title: Map parking 🅿️
+                uri: "{{extra_data.url}}"
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            action_map_car:
+              - action: map_car
+                title: Map car 🗺️
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            action_map_traffic:
+              - action: map_traffic
+                title: Map traffic 🛣️
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            action_refresh_car_data:
+              - action: refresh_car_data
+                title: Refresh car data 🔄️
+                activationMode: background
+                authenticationRequired: true
+                destructive: false
+                behavior: default
+            actions_desired: >-
+              {{actions_uri + action_map_car + action_map_traffic + action_refresh_car_data}}
+        - choose: []
+          default:
+            - continue_on_error: true
+              data:
+                title: "{{title}}"
+                message: "{{message}}"
+                data:
+                  push:
+                    sound:
+                      name: default
+                      critical: "{{critical_desired}}"
+                  url: "{{extra_data.url}}"
+                  group: "{{notification_tag}}"
+                  tag: "{{notification_tag}}"
+                  action_data:
+                    latitude: "{{state_attr('person.car','latitude')}}"
+                    longitude: "{{state_attr('person.car','longitude')}}"
+                    second_latitude: "{{extra_data.latitude}}"
+                    second_longitude: "{{extra_data.longitude}}"
+                  actions: "{{actions_desired}}"
+              action: notify.notify
+            - wait_for_trigger:
+                - event_type: mobile_app_notification_action
+                  trigger: event
+              timeout:
+                hours: 0
+                minutes: 0
+                seconds: 30
+                milliseconds: 0
+              continue_on_timeout: true
+              enabled: true
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{wait.trigger == None}}"
+                  sequence:
+                     - continue_on_error: true
+                       data:
+                         title: "{{title}}"
+                         message: "{{message}}"
+                         data:
+                           push:
+                             sound:
+                               name: default
+                               critical: "{{critical_desired}}"
+                           url: "{{extra_data.url}}"
+                           group: "{{notification_tag}}"
+                           tag: "{{notification_tag}}"
+                           action_data:
+                             latitude: "{{state_attr('person.car','latitude')}}"
+                             longitude: "{{state_attr('person.car','longitude')}}"
+                             second_latitude: "{{extra_data.latitude}}"
+                             second_longitude: "{{extra_data.longitude}}"
+                       action: notify.notify
+                     - stop: timeout
+            - variables:
+                option: "{{ wait.trigger.event.data.action }}"
+                selected_entity: |
+                  {{
+                    {'map_traffic': 'automation.traffic_notificaiton',
+                     'map_car': 'person.car',
+                     'refresh_car_data': 'script.refresh_car_data'
+                     }[wait.trigger.event.data.action] }}
+                entity_type: "{{selected_entity.split('.')[0] }}"
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'sensor' or entity_type == 'person' }}"
+                  sequence:
+                    - data:
+                        message: >-
+                          {{option}}: {{state_attr(selected_entity,'thoroughfare')}}
+                          {{state_attr(selected_entity,'sub_thoroughfare')}},
+                          {{state_attr(selected_entity,'locality')}}
+                        data:
+                          push:
+                            sound:
+                              name: default
+                              critical: "{{critical_desired}}"
+                          group: person
+                          tag: person
+                          action_data:
+                            latitude: "{{state_attr('person.car','latitude')}}"
+                            longitude: "{{state_attr('person.car','longitude')}}"
+                            second_latitude: "{{extra_data.latitude}}"
+                            second_longitude: "{{extra_data.longitude}}"
+                          url: /lovelace/parking
+                      action: notify.notify
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'light' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: light.toggle
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'switch' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: switch.toggle
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'script' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: script.turn_on
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'automation' }}"
+                  sequence:
+                    - data:
+                        skip_condition: true
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: automation.trigger
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'lock' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity}}"
+                      action: lock.lock
+                - conditions:
+                    - condition: template
+                      value_template: "{{ entity_type == 'unlock' }}"
+                  sequence:
+                    - data: {}
+                      target:
+                        entity_id: "{{selected_entity|replace('unlock', 'lock')}}"
+                      action: lock.unlock
+      
+      ```
+      
+   </details>
 * Find the public parking information to a given location.
-   * ![Service find nearest](https://github.com/myTselection/CityParking/blob/b5ee28f8f46687bad39e5207f400f77a8001bdc7/service_find_nearest.png)
+   * ![Service find nearest](https://raw.githubusercontent.com/myTselection/CityParking/refs/heads/master/parking_info_service.png)
+   * The response will contain all available seety.co data. On top, a dict `extra_data` is available which contains the most relevant data as used in the 'City Parking' sensors.
    * <details><summary>It will return a JSON such as example below:</summary>
 
       ```
@@ -462,203 +494,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
                     - "600"
                   days:
                     - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-4:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 6.7
-                  "2": 13.5
-                hours:
-                  - "09:00"
-                  - "24:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 4
-              table:
-                - rows:
-                    09:00,19:00:
-                      - 0.4
-                      - 0.9
-                      - 1.7
-                      - 3.4
-                      - 5.2
-                      - 6.9
-                      - 8.6
-                      - 10.3
-                      - 10.3
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "600"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    09:00,19:00:
-                      - 0.4
-                      - 0.9
-                      - 1.7
-                      - 3.4
-                      - 5.2
-                      - 6.9
-                      - 8.6
-                      - 10.3
-                      - 10.3
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "600"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-2:
-              weight: 4.2
-              summary:
-                days:
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 2.9
-                  "2": 5.8
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 2
-              table:
-                - rows:
-                    09:00,19:00:
-                      - 0.8
-                      - 1.5
-                      - 3
-                      - 6
-                      - 9
-                      - 12
-                      - 15.1
-                      - 18
-                      - 18
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "600"
-                  days:
                     - 1
                     - 2
                     - 3
@@ -924,722 +759,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
                 - tanqyou_nl
                 - yellowbrick_nl
               displayNotPayable: false
-            yellow-16:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 1.7
-                  "2": 2.3
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 16
-              table:
-                - rows:
-                    09:00,19:00:
-                      - 1.7
-                      - 1.7
-                      - 3.4
-                      - 5.2
-                      - 6.9
-                      - 8.6
-                      - 10.3
-                      - 10.3
-                  cols:
-                    - "15"
-                    - "60"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "600"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    09:00,19:00:
-                      - 1.7
-                      - 1.7
-                      - 3.4
-                      - 5.2
-                      - 6.9
-                      - 8.6
-                      - 10.3
-                      - 10.3
-                  cols:
-                    - "15"
-                    - "60"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "600"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-3:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 1.7
-                  "2": 3.3
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "900"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 3
-              table:
-                - rows:
-                    09:00,24:00:
-                      - 1.7
-                      - 3.5
-                      - 7
-                      - 14
-                      - 20.9
-                      - 27.9
-                      - 34.9
-                      - 41.9
-                      - 48.9
-                      - 55.8
-                      - 62.8
-                      - 62.8
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "900"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    09:00,24:00:
-                      - 1.7
-                      - 3.5
-                      - 7
-                      - 14
-                      - 20.9
-                      - 27.9
-                      - 34.9
-                      - 41.9
-                      - 48.9
-                      - 55.8
-                      - 62.8
-                      - 62.8
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "900"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            orange:
-              weight: 5.3
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 7.8
-                  "2": 15.5
-                hours:
-                  - "00:00"
-                  - "24:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "900"
-              color:
-                color: "#ff6a00"
-                dotted: false
-              name: Orange zone
-              table:
-                - rows:
-                    19:00,24:00:
-                      - 21.4
-                      - 21.4
-                      - 42.8
-                      - 64.2
-                      - 85.6
-                      - 107
-                      - 107
-                  cols:
-                    - "15"
-                    - "60"
-                    - "360"
-                    - "660"
-                    - "960"
-                    - "1260"
-                    - "1440"
-                  days:
-                    - 0
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    09:00,24:00:
-                      - 1.3
-                      - 2.7
-                      - 5.4
-                      - 10.7
-                      - 16.1
-                      - 21.5
-                      - 26.9
-                      - 32.2
-                      - 37.6
-                      - 43
-                      - 48.3
-                      - 48.3
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "900"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            orange-2:
-              weight: 5.3
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 6.7
-                  "2": 13.5
-                hours:
-                  - "00:00"
-                  - "24:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "720"
-              color:
-                color: "#ff6a00"
-                dotted: false
-              name: Orange zone 2
-              table:
-                - rows:
-                    19:00,24:00:
-                      - 21.4
-                      - 21.4
-                      - 42.8
-                      - 64.2
-                      - 85.6
-                      - 107
-                      - 107
-                  cols:
-                    - "15"
-                    - "60"
-                    - "360"
-                    - "660"
-                    - "960"
-                    - "1260"
-                    - "1440"
-                  days:
-                    - 0
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    09:00,21:00:
-                      - 1.3
-                      - 2.7
-                      - 5.4
-                      - 10.7
-                      - 16.1
-                      - 21.5
-                      - 26.9
-                      - 32.2
-                      - 37.6
-                      - 38.6
-                      - 38.6
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "720"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-7:
-              weight: 4.2
-              summary:
-                days:
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 5.2
-                  "2": 10.4
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 7
-              table:
-                - rows:
-                    09:00,19:00:
-                      - 1.3
-                      - 2.7
-                      - 5.4
-                      - 10.7
-                      - 16.1
-                      - 21.5
-                      - 26.9
-                      - 32.2
-                      - 32.2
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "600"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-6:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 6.7
-                  "2": 13.5
-                hours:
-                  - "09:00"
-                  - "24:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "900"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 6
-              table:
-                - rows:
-                    09:00,24:00:
-                      - 1.7
-                      - 3.5
-                      - 7
-                      - 14
-                      - 20.9
-                      - 27.9
-                      - 34.9
-                      - 41.9
-                      - 48.9
-                      - 55.8
-                      - 62.8
-                      - 62.8
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "900"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-12:
-              weight: 4.2
-              summary:
-                days:
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 2.9
-                  "2": 5.8
-                hours:
-                  - "09:00"
-                  - "21:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "900"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 12
-              table:
-                - rows:
-                    09:00,24:00:
-                      - 0.8
-                      - 1.5
-                      - 3
-                      - 6
-                      - 9
-                      - 12
-                      - 15.1
-                      - 18.1
-                      - 21.1
-                      - 24.1
-                      - 27
-                      - 27
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "900"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
             noparking:
               weight: 0
               summary:
@@ -1687,880 +806,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
                   entryHours: null
               parkingPaymentProviders: []
               displayNotPayable: false
-            yellow-11:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 0.1
-                  "2": 0.2
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "720"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 11
-              table:
-                - rows:
-                    09:00,21:00:
-                      - 0.8
-                      - 1.5
-                      - 3
-                      - 6
-                      - 9
-                      - 12
-                      - 15.1
-                      - 18.1
-                      - 21.1
-                      - 21.6
-                      - 21.6
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "720"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-8:
-              weight: 4.2
-              summary:
-                days:
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 4
-                  "2": 8.1
-                hours:
-                  - "09:00"
-                  - "21:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 8
-              table:
-                - rows:
-                    09:00,19:00:
-                      - 1.7
-                      - 3.5
-                      - 7
-                      - 14
-                      - 20.9
-                      - 27.9
-                      - 34.9
-                      - 41.8
-                      - 41.8
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "600"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            orange-1:
-              weight: 5.3
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 1.7
-                  "2": 3.3
-                hours:
-                  - "00:00"
-                  - "06:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "1440"
-              color:
-                color: "#ff6a00"
-                dotted: false
-              name: Orange zone 1
-              table:
-                - rows:
-                    00:00,24:00:
-                      - 2
-                      - 4
-                      - 8.1
-                      - 16.1
-                      - 24.2
-                      - 32.2
-                      - 40.3
-                      - 48.3
-                      - 56.4
-                      - 64.4
-                      - 72.5
-                      - 80.5
-                      - 88.6
-                      - 96.6
-                      - 104.7
-                      - 112.7
-                      - 120.8
-                      - 128.8
-                      - 136.9
-                      - 144.9
-                      - 153
-                      - 161
-                      - 169.1
-                      - 177.1
-                      - 185.2
-                      - 193.2
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "600"
-                    - "660"
-                    - "720"
-                    - "780"
-                    - "840"
-                    - "900"
-                    - "960"
-                    - "1020"
-                    - "1080"
-                    - "1140"
-                    - "1200"
-                    - "1260"
-                    - "1320"
-                    - "1380"
-                    - "1440"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            orange-4:
-              weight: 5.3
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 7.8
-                  "2": 9.8
-                hours:
-                  - "02:00"
-                  - "06:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "1440"
-              color:
-                color: "#ff6a00"
-                dotted: false
-              name: Orange zone 4
-              table:
-                - rows:
-                    00:00,24:00:
-                      - 1.7
-                      - 3.5
-                      - 7
-                      - 14
-                      - 20.9
-                      - 27.9
-                      - 34.9
-                      - 41.9
-                      - 48.9
-                      - 55.8
-                      - 62.8
-                      - 69.8
-                      - 76.8
-                      - 83.8
-                      - 90.7
-                      - 97.7
-                      - 104.7
-                      - 111.7
-                      - 118.7
-                      - 125.6
-                      - 132.6
-                      - 139.6
-                      - 146.6
-                      - 153.6
-                      - 160.5
-                      - 167.5
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "600"
-                    - "660"
-                    - "720"
-                    - "780"
-                    - "840"
-                    - "900"
-                    - "960"
-                    - "1020"
-                    - "1080"
-                    - "1140"
-                    - "1200"
-                    - "1260"
-                    - "1320"
-                    - "1380"
-                    - "1440"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            orange-5:
-              weight: 5.3
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 5.4
-                  "2": 10.7
-                hours:
-                  - "00:00"
-                  - "24:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "1440"
-              color:
-                color: "#ff6a00"
-                dotted: false
-              name: Orange zone 5
-              table:
-                - rows:
-                    00:00,24:00:
-                      - 1.3
-                      - 2.7
-                      - 5.4
-                      - 10.7
-                      - 16.1
-                      - 21.5
-                      - 26.9
-                      - 32.2
-                      - 37.6
-                      - 43
-                      - 48.3
-                      - 53.7
-                      - 59.1
-                      - 64.4
-                      - 69.8
-                      - 75.2
-                      - 80.6
-                      - 85.9
-                      - 91.3
-                      - 96.7
-                      - 102
-                      - 107.4
-                      - 112.8
-                      - 118.1
-                      - 123.5
-                      - 128.9
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "600"
-                    - "660"
-                    - "720"
-                    - "780"
-                    - "840"
-                    - "900"
-                    - "960"
-                    - "1020"
-                    - "1080"
-                    - "1140"
-                    - "1200"
-                    - "1260"
-                    - "1320"
-                    - "1380"
-                    - "1440"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    00:00,24:00:
-                      - 1.3
-                      - 2.7
-                      - 5.4
-                      - 10.7
-                      - 16.1
-                      - 21.5
-                      - 26.9
-                      - 32.2
-                      - 37.6
-                      - 43
-                      - 48.3
-                      - 53.7
-                      - 59.1
-                      - 64.4
-                      - 69.8
-                      - 75.2
-                      - 80.6
-                      - 85.9
-                      - 91.3
-                      - 96.7
-                      - 102
-                      - 107.4
-                      - 112.8
-                      - 118.1
-                      - 123.5
-                      - 128.9
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "600"
-                    - "660"
-                    - "720"
-                    - "780"
-                    - "840"
-                    - "900"
-                    - "960"
-                    - "1020"
-                    - "1080"
-                    - "1140"
-                    - "1200"
-                    - "1260"
-                    - "1320"
-                    - "1380"
-                    - "1440"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-15:
-              weight: 4.2
-              summary:
-                days:
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 2.9
-                  "2": 5.8
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "720"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 15
-              table:
-                - rows:
-                    09:00,21:00:
-                      - 1
-                      - 2.1
-                      - 4.2
-                      - 8.4
-                      - 12.6
-                      - 16.8
-                      - 20.9
-                      - 25.1
-                      - 29.3
-                      - 30.1
-                      - 30.1
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "720"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-1:
-              weight: 4.2
-              summary:
-                days:
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 4
-                  "2": 8.1
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 1
-              table:
-                - rows:
-                    09:00,19:00:
-                      - 1
-                      - 2.1
-                      - 4.2
-                      - 8.4
-                      - 12.6
-                      - 16.8
-                      - 20.9
-                      - 25.1
-                      - 25.1
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "600"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-13:
-              weight: 4.2
-              summary:
-                days:
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 2.9
-                  "2": 5.8
-                hours:
-                  - "09:00"
-                  - "24:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "900"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 13
-              table:
-                - rows:
-                    12:00,24:00:
-                      - 1
-                      - 2.1
-                      - 4.2
-                      - 8.4
-                      - 12.6
-                      - 16.8
-                      - 20.9
-                      - 25.1
-                      - 29.3
-                      - 30.1
-                      - 30.1
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "720"
-                  days:
-                    - 0
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    09:00,24:00:
-                      - 1
-                      - 2.1
-                      - 4.2
-                      - 8.4
-                      - 12.6
-                      - 16.8
-                      - 20.9
-                      - 25.1
-                      - 29.3
-                      - 33.5
-                      - 37.7
-                      - 37.7
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "540"
-                    - "900"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
             red:
               weight: 6.2
               summary:
@@ -2606,407 +851,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
                     - "60"
                     - "600"
                   days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-14:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 4
-                  "2": 8.1
-                hours:
-                  - "09:00"
-                  - "24:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 14
-              table:
-                - rows:
-                    09:00,19:00:
-                      - 0.8
-                      - 1.5
-                      - 3
-                      - 6
-                      - 9
-                      - 12
-                      - 15.1
-                      - 18
-                      - 18
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "600"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-5:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 1.7
-                  "2": 3.3
-                hours:
-                  - "09:00"
-                  - "21:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "720"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 5
-              table:
-                - rows:
-                    09:00,21:00:
-                      - 0.4
-                      - 0.9
-                      - 1.7
-                      - 3.4
-                      - 5.2
-                      - 6.9
-                      - 8.6
-                      - 10.3
-                      - 12
-                      - 12.3
-                      - 12.3
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "720"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    09:00,21:00:
-                      - 0.4
-                      - 0.9
-                      - 1.7
-                      - 3.4
-                      - 5.2
-                      - 6.9
-                      - 8.6
-                      - 10.3
-                      - 12
-                      - 12.3
-                      - 12.3
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "480"
-                    - "720"
-                  days:
-                    - 0
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            yellow-9:
-              weight: 4.2
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 6.7
-                  "2": 13.5
-                hours:
-                  - "09:00"
-                  - "19:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "600"
-              color:
-                color: "#ffdd00"
-                dotted: false
-              name: Yellow zone 9
-              table:
-                - rows:
-                    10:00,20:00:
-                      - 0.3
-                      - 0.6
-                      - 1.3
-                      - 2.6
-                      - 3.9
-                      - 5.2
-                      - 6.5
-                      - 7.7
-                      - 8.1
-                      - 8.1
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "600"
-                  days:
-                    - 1
-                    - 2
-                    - 3
-                    - 4
-                    - 5
-                  accessHours: {}
-                  entryHours: null
-                - rows:
-                    10:00,17:00:
-                      - 0.3
-                      - 0.6
-                      - 1.3
-                      - 2.6
-                      - 3.9
-                      - 5.2
-                      - 6.5
-                      - 7.7
-                      - 8.1
-                      - 8.1
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "120"
-                    - "180"
-                    - "240"
-                    - "300"
-                    - "360"
-                    - "420"
-                    - "600"
-                  days:
-                    - 6
-                  accessHours: {}
-                  entryHours: null
-              parkingPaymentProviders:
-                - seety_nl
-                - 4411_nl
-                - driveulu_nl
-                - ease2pay_nl
-                - easypark_nl
-                - lekkerparkeren_nl
-                - mkbbrandstof_nl
-                - parkd_nl
-                - parkline_nl
-                - parkmobile_nl
-                - parksen_nl
-                - paybyphone_nl
-                - qpark_nl
-                - sms_parking_nl
-                - tanqyou_nl
-                - yellowbrick_nl
-              displayNotPayable: false
-            orange-6:
-              weight: 5.3
-              summary:
-                days:
-                  - 0
-                  - 1
-                  - 2
-                  - 3
-                  - 4
-                  - 5
-                  - 6
-                prices:
-                  "0": 0
-                  "1": 8.1
-                  "2": 10.1
-                hours:
-                  - "02:00"
-                  - "06:00"
-                type: paid
-                paymentPartner: shpv
-                advantageInApp: false
-                displayNotPayable: false
-                overrides: {}
-                forceDisplayPriceTables: false
-              remarks:
-                - "Fine: 150€."
-              specialPermits:
-                residents: []
-                disabled: []
-              maxStay: "1440"
-              color:
-                color: "#ff6a00"
-                dotted: false
-              name: Orange zone 6
-              table:
-                - rows:
-                    02:00,06:00:
-                      - 2
-                      - 4
-                      - 8.1
-                      - 16.1
-                      - 24.2
-                      - 32.2
-                      - 40.3
-                      - 48.3
-                      - 48.3
-                  cols:
-                    - "15"
-                    - "30"
-                    - "60"
-                    - "300"
-                    - "540"
-                    - "780"
-                    - "1020"
-                    - "1260"
-                    - "1440"
-                  days:
-                    - 0
                     - 1
                     - 2
                     - 3
@@ -3420,302 +1264,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
               registrationFees: "0"
               subscriptionPrice: null
               subscriptionType: null
-            - descriptionApp: null
-              descriptionSMS: null
-              fees:
-                registration:
-                  fixed: 0
-                session:
-                  comment: null
-                  fixed: 0
-                  percentage: null
-                sessionSubscription:
-                  comment: null
-                  fixed: 0.2
-                  percentage: null
-                notifSms: null
-                notifApp: null
-              advantageApp:
-                fr:
-                  - >-
-                    Il est également possible de payer son essence, son carwash et les
-                    recharges électriques avec l'application
-                  - >-
-                    L'app peut être utilisée dans plusieurs pays européens pour le
-                    carburant et la recharge electrique (pas le parking)
-                en: []
-                nl: []
-              disadvantageApp:
-                fr:
-                  - >-
-                    App uniquement disponible pour les professionnels avec un
-                    abonnement (8,9€/moins) obligatoire
-                  - >-
-                    L'app est principalement destinée aux payement de carburant ce qui
-                    la rend moins pratique pour le parking
-                  - Le paiement du parking est uniquement disponible aux Pays-bas
-                en: []
-                nl: []
-              advantageSms:
-                fr: []
-                en: []
-                nl: []
-              disadvantageSms:
-                fr: []
-                en: []
-                nl: []
-              name: MKB Brandstof
-              intName: mkbbrandstof_nl
-              rating: 4
-              logo: >-
-                https://storage.googleapis.com/cpark-static-images/mobility-providers/mkb-brandstof.png
-              subscriptions:
-                - period: 30
-                  price: 8.9
-              url: http://www.mkb-brandstof.nl/
-              transactionPrice: null
-              notificationPrice: "0"
-              registrationFees: "0"
-              subscriptionPrice: null
-              subscriptionType: null
-            - descriptionApp: null
-              descriptionSMS: null
-              fees:
-                registration:
-                  fixed: 5
-                session:
-                  comment: null
-                  fixed: 0
-                  percentage: null
-                sessionSubscription:
-                  comment: null
-                  fixed: 0.15
-                  percentage: null
-                notifSms:
-                  comment: null
-                  fixed: 0.25
-                  percentage: null
-                notifApp: null
-              advantageApp:
-                fr:
-                  - >-
-                    Possibilité de payer son parking, son car-wash et son essence avec
-                    la même app
-                  - Vous pouvez bénéficier d'un account manager dédié
-                en: []
-                nl: []
-              disadvantageApp:
-                fr:
-                  - L'app est uniquement disponible pour les professionnels
-                  - >-
-                    Il faut payer en plus pour utiliser l'app pour le carburant et les
-                    carwash
-                  - >-
-                    Obligation de payer les frais d'inscription (5 €) et de souscrire
-                    à un abonnement pour  utiliser l'application
-                en: []
-                nl: []
-              advantageSms:
-                fr: []
-                en: []
-                nl: []
-              disadvantageSms:
-                fr: []
-                en: []
-                nl: []
-              name: Parkline
-              intName: parkline_nl
-              rating: 4
-              logo: >-
-                https://storage.googleapis.com/cpark-static-images/mobility-providers/parkline.png
-              subscriptions:
-                - period: 30
-                  price: 2.5
-              url: http://www.parkline.nl/
-              transactionPrice: null
-              notificationPrice: "0"
-              registrationFees: "0"
-              subscriptionPrice: null
-              subscriptionType: null
-            - descriptionApp: null
-              descriptionSMS: null
-              fees:
-                registration:
-                  fixed: 0
-                session:
-                  comment: null
-                  fixed: 0.39
-                  percentage: null
-                sessionSubscription:
-                  comment: null
-                  fixed: 0.15
-                  percentage: null
-                notifSms:
-                  comment: null
-                  fixed: 0.25
-                  percentage: null
-                notifApp: null
-              advantageApp:
-                fr:
-                  - >-
-                    Possibilité de payer son stationnement dans certains parking
-                    publics
-                  - >-
-                    Choix de la zone de stationnement en choisissant le code de la
-                    zone ou en cliquant sur la carte
-                  - Possibilité d'ajouter certaines zones en favoris
-                en: []
-                nl: []
-              disadvantageApp:
-                fr:
-                  - >-
-                    Une des app les plus chère pour payer son stationnement aux
-                    Pays-Bas
-                  - >-
-                    Vous devez payer 1€ chaque fois que vous voulez rajouter une
-                    plaque d'immatriculation
-                  - Attention aux notifications payantes
-                  - Pas de possibilité de bénéficier des tickets gratuits
-                  - Application relativement complexe à utiliser
-                  - Inscription longue et obligatoire avant de découvrir le service
-                  - Nombre de parkings publics limité
-                en: []
-                nl: []
-              advantageSms:
-                fr: []
-                en: []
-                nl: []
-              disadvantageSms:
-                fr: []
-                en: []
-                nl: []
-              name: Parkmobile
-              intName: parkmobile_nl
-              rating: 4
-              logo: >-
-                https://storage.googleapis.com/cpark-static-images/mobility-providers/parkmobile.png
-              subscriptions:
-                - period: 30
-                  price: 2.5
-              url: http://www.parkmobile.nl/
-              transactionPrice: null
-              notificationPrice: "0"
-              registrationFees: "0"
-              subscriptionPrice: null
-              subscriptionType: null
-            - descriptionApp: null
-              descriptionSMS: null
-              fees:
-                registration:
-                  fixed: 0
-                session:
-                  comment: null
-                  fixed: 0.2
-                  percentage: null
-                sessionSubscription: null
-                notifSms:
-                  comment: null
-                  fixed: 0.15
-                  percentage: null
-                notifApp: null
-              advantageApp:
-                fr:
-                  - Inscription relativement facile
-                  - Différentes manières de choisir l'horodateur à proximité
-                  - Possibilité d'enregistrer une zone en tant que favoris
-                  - Frais de transaction raisonnable
-                  - Disponible dans 112 villes aux Pays-Bas
-                en: []
-                nl: []
-              disadvantageApp:
-                fr:
-                  - Inscription obligatoire avant de découvrir l'app
-                  - "Application peu intuitive: relativement difficile à utiliser"
-                  - >-
-                    Uniquement disponible pour le parking de rue (Pas possible de
-                    réserver un parking public)
-                  - Attention aux notifications payantes
-                  - Obligé de choisir une durée de stationnement prédéfinie
-                  - >-
-                    Certain services encore non disponible aux Pays-Bas comme payer
-                    son titre de transport via l'application
-                en: []
-                nl: []
-              advantageSms:
-                fr: []
-                en: []
-                nl: []
-              disadvantageSms:
-                fr: []
-                en: []
-                nl: []
-              name: PayByPhone
-              intName: paybyphone_nl
-              rating: 4
-              logo: >-
-                https://storage.googleapis.com/cpark-static-images/mobility-providers/paybyphone.png
-              subscriptions: []
-              url: www.paybyphone.com
-              transactionPrice: null
-              notificationPrice: "0"
-              registrationFees: "0"
-              subscriptionPrice: null
-              subscriptionType: null
-            - descriptionApp: null
-              descriptionSMS: null
-              fees:
-                registration:
-                  fixed: 0
-                session:
-                  comment:
-                    fr: Hors TVA
-                    en: Exclusive of VAT
-                    nl: Exclusief BTW
-                  fixed: 0.37
-                  percentage: null
-                sessionSubscription: null
-                notifSms: null
-                notifApp: null
-              advantageApp:
-                fr:
-                  - >-
-                    Possibilité de réserver son stationnement à l'avance dans un
-                    parking Q-park
-                en: []
-                nl: []
-              disadvantageApp:
-                fr:
-                  - >-
-                    Une des app les plus chère pour payer son stationnement aux
-                    Pays-Bas
-                  - >-
-                    L'app  est principalement destiné à payer son stationnement dans
-                    les parkings Q-park plutôt  qu'en rue.
-                  - >-
-                    Les fonctionnalités sont  très limitées si on ne crée pas de
-                    compte
-                en: []
-                nl: []
-              advantageSms:
-                fr: []
-                en: []
-                nl: []
-              disadvantageSms:
-                fr: []
-                en: []
-                nl: []
-              name: QPark
-              intName: qpark_nl
-              rating: 4
-              logo: >-
-                https://storage.googleapis.com/cpark-static-images/mobility-providers/qpark.png
-              subscriptions: []
-              url: http://www.q-park.nl/
-              transactionPrice: null
-              notificationPrice: "0"
-              registrationFees: "0"
-              subscriptionPrice: null
-              subscriptionType: null
             - descriptionApp:
                 fr: "<div class=\"prices\">\n        <h3>Tarifs</h3>\n        <ul>\n \t<li>Frais de transaction de 0.15€ (les moins chers)</li>\n\t<li>Frais d'activation : 0€</li>\n\t<li>Frais de notification dans l'app : gratuit </li>\n\t<li>Moyens de paiements acceptés (Carte de crédit, Domiciliation, Apple et Google Pay)</li>\n</ul></div>"
                 en: "<div class=\"prices\">\n        <h3>Rates</h3>\n        <ul>\n \t<li>Transaction fee of 0.15€ (least expensive)</li>\n\t<li>Activation fee: 0€</li>\n\t<li>Notification fee in the app: free</li>\n\t<li>Accepted payment methods (Credit Card, domiciliation, Apple and Google Pay)</li>\n</ul></div>"
@@ -3774,132 +1322,6 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
               subscriptions: []
               url: https://seety.page.link/Kdp9
               transactionPrice: "0.15"
-              notificationPrice: "0"
-              registrationFees: "0"
-              subscriptionPrice: null
-              subscriptionType: null
-            - descriptionApp: null
-              descriptionSMS: null
-              fees:
-                registration:
-                  fixed: 5
-                session:
-                  comment: null
-                  fixed: 0.3
-                  percentage: null
-                sessionSubscription:
-                  comment: null
-                  fixed: 0.16
-                  percentage: null
-                notifSms:
-                  comment: null
-                  fixed: 0.3
-                  percentage: null
-                notifApp: null
-              advantageApp:
-                fr:
-                  - Possibilité de payer son parking par sms
-                  - >-
-                    Il est également possible de payer son parking dans des parking
-                    publics
-                en: []
-                nl: []
-              disadvantageApp:
-                fr:
-                  - >-
-                    Le paiement de  stationnement est assez cher, 0,3€ en plus du prix
-                    du parking
-                  - >-
-                    Même lorsque que vous souscrivez à une abonnement il faut
-                    continuer à payer des frais de transaction
-                  - L'inscription à l'app est obligatoire et assez fastidieuse
-                  - Le design de l'app pourrait être amélioré
-                en: []
-                nl: []
-              advantageSms:
-                fr: []
-                en: []
-                nl: []
-              disadvantageSms:
-                fr: []
-                en: []
-                nl: []
-              name: SMS Parking
-              intName: sms_parking_nl
-              rating: 4
-              logo: >-
-                https://storage.googleapis.com/cpark-static-images/mobility-providers/sms-parking.png
-              subscriptions:
-                - period: 30
-                  price: 1.85
-              url: www.smsparking.nl
-              transactionPrice: null
-              notificationPrice: "0"
-              registrationFees: "0"
-              subscriptionPrice: null
-              subscriptionType: null
-            - descriptionApp: null
-              descriptionSMS: null
-              fees:
-                registration:
-                  fixed: 0
-                session:
-                  comment:
-                    fr: Flexible
-                    en: Flexible
-                    nl: Flexibel
-                  fixed: 0.2
-                  percentage: null
-                sessionSubscription:
-                  comment: null
-                  fixed: 0
-                  percentage: null
-                notifSms:
-                  comment: null
-                  fixed: 0.25
-                  percentage: null
-                notifApp: null
-              advantageApp:
-                fr:
-                  - >-
-                    Il est également possible de payer son carburant, les recharges
-                    électriques et certaines voitures partagées directement via
-                    l'application
-                  - Disponible dans plus de 150 villes aux Pays-Bas
-                  - Possibilité d'enregistrer des zones en favori
-                en: []
-                nl: []
-              disadvantageApp:
-                fr:
-                  - Inscription obligatoire afin de découvrir l'app
-                  - "Application peu intuitive: relativement difficile à utiliser"
-                  - >-
-                    L'app est principalement destinée aux payement de carburant ce qui
-                    la rend moins pratique pour le parking
-                  - >-
-                    Vous devez définir à l'avance combien de temps vous voulez rester
-                    stationné
-                  - Uniquement disponible aux Pays-Bas
-                en: []
-                nl: []
-              advantageSms:
-                fr: []
-                en: []
-                nl: []
-              disadvantageSms:
-                fr: []
-                en: []
-                nl: []
-              name: TanQyou
-              intName: tanqyou_nl
-              rating: 4
-              logo: >-
-                https://storage.googleapis.com/cpark-static-images/mobility-providers/tanqyou.png
-              subscriptions:
-                - period: 30
-                  price: 1.5
-              url: www.tanqyou.com
-              transactionPrice: null
               notificationPrice: "0"
               registrationFees: "0"
               subscriptionPrice: null
@@ -3987,15 +1409,86 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
           prices: 1.7€ (1h) - 3.3€ (2h)
           remarks: "Fine: 150€."
           maxStay: 24h
-          zone: orange-1
+          zone: orange 🟠
           address: Raadhuisstraat 11, 1016 DB Amsterdam, NL
+          url: https://map.seety.co/Raadhuisstraat 11, 1016 DB Amsterdam, NL/16?lang=en
+          type_src: "paid"
+          time_restrictions_src: ["00:00", "06:00"]
+          days_restrictions_src: [0,1,2,3,4,5,6]
+          price_src: {1: 1,7, 2: 3.3}
+          remarks_src: ["Fine: 150€"]
+          max_stay_src: 1440
+          zone_src: orange-2
+          address_src: Raadhuisstraat 11, 1016 DB Amsterdam
+          time_restriction_active_now: false
+          day_restriction_active_now: false
+          maxstay_passed_now: false
+          maxstay_elapsed: 0
+          maxstay_remaining: 0
+          maxstay_start_time: "2026-02-08T12:54:59.578763+01:00"
+          restriction_active: false
+          last_update: "2026-02-08T12:54:59.578763+01:00"
+          last_restriction_check: "2026-02-08T12:54:59.578770+01:00"
 
       
       ```
 
 </details>
 
+### Markdown example
 
+Markdown card. Below example has a condition to only be visible is some parking restiction would apply. 
+
+Replace `sensor.parking_person_car_restriction_active` with the name of your own parking sensor.
+
+Translation of `type` is optional.
+
+```
+
+type: markdown
+content: >
+  {% set source_sensor = 'sensor.parking_person_car_restriction_active' %}
+  {% set zone = state_attr(source_sensor, 'zone') %}
+  {% set type = state_attr(source_sensor, 'type') %}
+  {% set restriction_active = state_attr(source_sensor, 'restriction_active') %}
+  {% set address = state_attr(source_sensor, 'address') %}
+  {% set days_restrictions = state_attr(source_sensor, 'days_restrictions') %}
+  {% set time_restrictions = state_attr(source_sensor, 'time_restrictions') %}
+  {% set price = state_attr(source_sensor, 'price') %}
+  {% set remarks = state_attr(source_sensor, 'remarks_src') | list %}
+  {% set url = state_attr(source_sensor, 'url') %}
+
+  {% set translations = {
+    'free': 'Gratis',
+    'paid': 'Betalend',
+    'disc': 'Blauwe schijf',
+    'Unknown': ''
+  } %}
+
+
+
+  <a href='{{ url }}'>🅿️ {{zone}}: {{translations.get(type, '')}}</a>
+
+  🚘 {{address}}
+
+  {% if restriction_active == 'True' %}⚠️ {% endif %}Restricted on: {{days_restrictions}},
+  between {{time_restrictions}}
+
+  {% if price %}💶 Price: {{price}}{% endif %}
+
+  {% if remarks %} <details><summary><b>Remarks:</b></summary>
+
+  {% for remark in remarks %}  
+
+  - {{ remark }}  {% endfor %}  
+
+  </details> {% endif %}
+visibility:
+  - condition: state
+    entity: sensor.parking_person_car_restriction_active
+    state: "True"
+
+```
 
 ## Status
 Proof of concept status, still validating and extending functionalities. [Issues](https://github.com/myTselection/CityParking/issues) section in GitHub.
@@ -4015,6 +1508,4 @@ logger:
   logs:
      custom_components.cityparking: debug
 ```
-
-## Example usage: TODO
 
