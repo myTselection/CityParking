@@ -84,7 +84,249 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
     
     </details>
     
-### Services / Actions
+### Services / Actions / Automations
+* Get a notification when drive ended and some restrictions would be active
+  * <details><summary>Example automation script</summary>
+    
+    ```
+    alias: Parking Notification Automotive
+    description: ""
+    triggers:
+      - trigger: state
+        entity_id:
+          - sensor.phone_activity
+        from:
+          - Automotive
+        for:
+          hours: 0
+          minutes: 0
+          seconds: 30
+    conditions:
+      - condition: not
+        conditions:
+          - condition: zone
+            entity_id: person.jef
+            zone: zone.home
+    actions:
+      - action: script.parking_notification
+        metadata: {}
+        enabled: true
+    mode: single
+
+    ```
+
+    </details>
+* Send a notification with city parking information
+  * <details><summary>Example action script</summary>
+    
+    ```
+    sequence:
+      - action: cityparking.city_parking_info
+        metadata: {}
+        data:
+          origin: person.jef
+        response_variable: parking_info
+      - variables:
+          extra_data: "{{parking_info.city_parking_info.extra_data}}"
+          critical_desired: >-
+            {% if states('sensor.phone_activity') == 'Automotive' or 
+            (trigger is defined and trigger.event is defined and
+            trigger.event.data.triggerSource == 'carPlay') %}1{% else %}0{% endif %}
+          notification_tag: parking
+          title: >-
+            🅿️ {{extra_data.zone}} ({{extra_data.type}}) Active:
+            {{extra_data.restriction_active}}
+          message: >-
+            {{extra_data.type}} ({{extra_data.zone}}): {{extra_data.address}}
+
+            {% if extra_data.restriction_active %}⚠️{% endif %}Restricted on:
+            {{extra_data.days_restrictions}}, between
+            {{extra_data.time_restrictions}}
+
+            Price: {{extra_data.price}}
+
+            Remarks: {{extra_data.remarks}}
+          actions_uri:
+            - action: URI
+              title: Kaart parking 🅿️
+              uri: "{{extra_data.url}}"
+              activationMode: background
+              authenticationRequired: true
+              destructive: false
+              behavior: default
+          action_lock:
+            - action: lock
+              title: Lock car 🔐
+              activationMode: background
+              authenticationRequired: true
+              destructive: true
+              behavior: default
+          action_unlock:
+            - action: unlock
+              title: Unlock car 🔒
+              activationMode: background
+              authenticationRequired: true
+              destructive: true
+              behavior: default
+          action_map_car:
+            - action: map_car
+              title: Map car 🗺️
+              activationMode: background
+              authenticationRequired: true
+              destructive: false
+              behavior: default
+          action_map_traffic:
+            - action: map_traffic
+              title: Traffic 🛣️
+              activationMode: background
+              authenticationRequired: true
+              destructive: false
+              behavior: default
+          action_refresh_car_data:
+            - action: refresh_car_data
+              title: Refresh car data 🔄️
+              activationMode: background
+              authenticationRequired: true
+              destructive: false
+              behavior: default
+          actions_desired: >-
+            {{actions_uri + action_lock + action_unlock + action_map_car +
+            action_map_traffic + action_refresh_car_data}}
+      - choose: []
+        default:
+          - continue_on_error: true
+            data:
+              title: "{{title}}"
+              message: "{{message}}"
+              data:
+                push:
+                  sound:
+                    name: default
+                    critical: "{{critical_desired}}"
+                url: "{{extra_data.url}}"
+                group: "{{notification_tag}}"
+                tag: "{{notification_tag}}"
+                action_data:
+                  latitude: "{{state_attr('person.car','latitude')}}"
+                  longitude: "{{state_attr('person.car','longitude')}}"
+                  second_latitude: "{{extra_data.latitude}}"
+                  second_longitude: "{{extra_data.longitude}}"
+                actions: "{{actions_desired}}"
+            action: notify.iphone_notification_group
+          - wait_for_trigger:
+              - event_type: mobile_app_notification_action
+                trigger: event
+            timeout:
+              hours: 0
+              minutes: 0
+              seconds: 30
+              milliseconds: 0
+            continue_on_timeout: true
+            enabled: true
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{wait.trigger == None}}"
+                sequence:
+                  - metadata: {}
+                    data:
+                      message: clear_notification
+                      data:
+                        tag: "{{notification_tag}}"
+                    action: notify.iphone_notification_group
+                  - stop: timeout
+          - variables:
+              option: "{{ wait.trigger.event.data.action }}"
+              selected_entity: |
+                {{
+                  {'lock': 'lock.car_door_lock',
+                  'unlock': 'unlock.car_door_lock',    
+                  'map_traffic': 'automation.traffic_notification',
+                  'map_car': 'person.car',
+                  'refresh_car_data': 'script.refresh_car_data'
+                  }[wait.trigger.event.data.action] }}
+              entity_type: "{{selected_entity.split('.')[0] }}"
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ entity_type == 'sensor' or entity_type == 'person' }}"
+                sequence:
+                  - data:
+                      message: >-
+                        {{option}}: {{state_attr(selected_entity,'thoroughfare')}}
+                        {{state_attr(selected_entity,'sub_thoroughfare')}},
+                        {{state_attr(selected_entity,'locality')}}
+                      data:
+                        push:
+                          sound:
+                            name: default
+                            critical: "{{critical_desired}}"
+                        group: person
+                        tag: person
+                        action_data:
+                          latitude: "{{state_attr('person.car','latitude')}}"
+                          longitude: "{{state_attr('person.car','longitude')}}"
+                          second_latitude: "{{extra_data.latitude}}"
+                          second_longitude: "{{extra_data.longitude}}"
+                        url: /lovelace/parking
+                    action: notify.iphone_notification_group
+              - conditions:
+                  - condition: template
+                    value_template: "{{ entity_type == 'light' }}"
+                sequence:
+                  - data: {}
+                    target:
+                      entity_id: "{{selected_entity}}"
+                    action: light.toggle
+              - conditions:
+                  - condition: template
+                    value_template: "{{ entity_type == 'switch' }}"
+                sequence:
+                  - data: {}
+                    target:
+                      entity_id: "{{selected_entity}}"
+                    action: switch.toggle
+              - conditions:
+                  - condition: template
+                    value_template: "{{ entity_type == 'script' }}"
+                sequence:
+                  - data: {}
+                    target:
+                      entity_id: "{{selected_entity}}"
+                    action: script.turn_on
+              - conditions:
+                  - condition: template
+                    value_template: "{{ entity_type == 'automation' }}"
+                sequence:
+                  - data:
+                      skip_condition: true
+                    target:
+                      entity_id: "{{selected_entity}}"
+                    action: automation.trigger
+              - conditions:
+                  - condition: template
+                    value_template: "{{ entity_type == 'lock' }}"
+                sequence:
+                  - data: {}
+                    target:
+                      entity_id: "{{selected_entity}}"
+                    action: lock.lock
+              - conditions:
+                  - condition: template
+                    value_template: "{{ entity_type == 'unlock' }}"
+                sequence:
+                  - data: {}
+                    target:
+                      entity_id: "{{selected_entity|replace('unlock', 'lock')}}"
+                    action: lock.unlock
+    alias: Parking Notification
+    description: ""
+    icon: mdi:parking
+
+
+    ```
+
+    </details>
 * Find the public parking information to a given location.
    * ![Service find nearest](https://github.com/myTselection/CityParking/blob/b5ee28f8f46687bad39e5207f400f77a8001bdc7/service_find_nearest.png)
    * <details><summary>It will return a JSON such as example below:</summary>
@@ -107,10 +349,10 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
           remoteConfigsLastUpdate:
             messages: "2025-01-16"
           access_token: >-
-            eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.IjAxNDY3OGEyZTUxMmQ2NDUwMmU4YmI4NWUxZjY1MDdkNjFmMDA3MGNmZWQ3ZDVjM2NhNDYxNGM4ZmYxOGE2YmEi.Rcn09l2bLimX0tpc9DueLAsNQiR0lH3F8RSdlZIh7yk
+            <token>
           expires_in: 10800
           refresh_token: >-
-            eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.ImM1MzQ5YjMyNThlYWIwZWZhNWM3ZDlhYjcyZDI2YjIxM2Q5ODQ3YzRiZjYyNGU0MDdjOGE1ODE1NDNiNWU0ZmFhN2RlYzBiZWEzODMyZmY2YTJkNTAyNTE3OTU0YTYxOGQzMWZjMTBmMmM3MmVlMmJkNjQ1NTg1YzFmZjdiZjQ2Ig.QyjbBBgGTGkOR3LtRmXq5m3Ztd1ZHleukI9fFvCKMpQ
+            <token>
           status: OK
         location:
           status: OK
