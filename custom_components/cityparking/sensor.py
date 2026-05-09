@@ -25,7 +25,7 @@ from homeassistant.util import dt as dt_util
 from . import (
     CityParkingUserDataUpdateCoordinator
 )
-from .const import DOMAIN
+from .const import API_MODE_LEGACY, DOMAIN
 
 _LOGGER = logging.getLogger(DOMAIN)
 
@@ -85,13 +85,15 @@ class CityParkingSensor(
         self.parkingSensorType_snake = " ".join(word.capitalize() for word in self.parkingSensorType.value.split("_"))  #snake_to_title(self.type.value)
         self.cityParkingInfo: CityParkingModel = self.coordinator.data
         self.origin = self.cityParkingInfo.origin
+        self.api_mode = getattr(coordinator, "api_mode", API_MODE_LEGACY)
+        api_mode_suffix = "" if self.api_mode == API_MODE_LEGACY else f" {self.api_mode.capitalize()}"
         # self._start_ts_iso: Optional[str] = None  # persisted ISO string for restoration
         
         # self._attr_name = f"{operator} {self.station.address.streetAndNumber} {self.station.address.city}{' ' + self.station.address.country if hasattr(self.station.address, "country") else ''}"
         # self._attr_name = self.station.name
-        self._attr_name = f"Parking {self.origin} {self.parkingSensorType_snake}"
+        self._attr_name = f"Parking {self.origin}{api_mode_suffix} {self.parkingSensorType_snake}"
         self._attr_has_entity_name = False
-        self._device_unique_id =  f"Parking {self.origin}"
+        self._device_unique_id =  f"Parking {self.origin}{api_mode_suffix}"
         self._attr_unique_id = f"{self._device_unique_id}_{parkingSensorType.value}"
         # store device_unique_id for device_info
         self._attr_attribution = "seety.co"

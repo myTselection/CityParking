@@ -268,11 +268,29 @@ class SeetyStreetComplete(BaseModel):
     cityName: Optional[str] = None
     status: Optional[str] = None
 
+
+class SeetyExternalRules(BaseModel):
+    days: Optional[List[int]] = []
+    hours: Optional[List[str]] = []
+    hasException: Optional[bool] = False
+    type: Optional[str] = None
+    maxStay: Optional[Union[str, int]] = None
+    prices: Optional[Dict[str, Union[float, int]]] = None
+
+
+class SeetyExternalRulesResponse(BaseModel):
+    status: Optional[str] = None
+    rules: Optional[SeetyExternalRules] = None
+    mapURL: Optional[str] = None
+
+
 class CityParkingModel(BaseModel):
     user: Optional[SeetyUser] = {}
     location: Optional[SeetyLocationResponse] = {}
     rules: Optional[SeetyStreetRules] = {}
     streetComplete: Optional[SeetyStreetComplete] = {}
+    externalRules: Optional[SeetyExternalRulesResponse] = None
+    api_mode: Optional[str] = None
     origin: Optional[str] = None
     origin_coordinates: Optional[Coords] = {}
     extra_data: Optional[Dict[str, Any]] = {}

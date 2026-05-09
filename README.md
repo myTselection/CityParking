@@ -41,6 +41,7 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
      You can also provide latitude and longitude information, eg `51.3304,3.802`. 
 
      You can also just provide the full address (but I noticed the current pywaze convertion from address to lat/lon is not very accurate).
+- By default the integration uses the existing Seety web API implementation. If Seety provided you an official external API key, select `official` as the Seety API mode and enter the key during setup.
 
 
 ## Integration

@@ -2,8 +2,10 @@
 import logging
 import re
 from typing import List, Tuple, Union
+from urllib.parse import unquote, urlparse
 
 from datetime import datetime, time
+from custom_components.cityparking.const import API_MODE_OFFICIAL
 from custom_components.cityparking.seetyApi.models import CityParkingModel, ParkingSensorType
 from homeassistant.util import dt as dt_util
 from typing import List
@@ -12,6 +14,10 @@ from typing import List
 _LOGGER = logging.getLogger(__name__)
 
 def extract_readable_info(cityParkingInfo: CityParkingModel):
+    if getattr(cityParkingInfo.externalRules, "status", None):
+        extract_official_readable_info(cityParkingInfo)
+        return
+
     rules = cityParkingInfo.rules.model_dump() if cityParkingInfo.rules else {}
     streetComplete = cityParkingInfo.streetComplete.model_dump() if cityParkingInfo.streetComplete else {}
     locationResults = cityParkingInfo.location.model_dump().get('results', [{}])[0] if cityParkingInfo.location else {}
@@ -45,6 +51,63 @@ def extract_readable_info(cityParkingInfo: CityParkingModel):
         ParkingSensorType.ADDRESS.value + "_src": f"{locationResults.get('formatted_address', '')}",
     }
     cityParkingInfo.extra_data = extra_data
+
+
+def extract_official_readable_info(cityParkingInfo: CityParkingModel):
+    external_rules = cityParkingInfo.externalRules
+    rules = external_rules.rules if external_rules else None
+    prices = rules.prices if rules else {}
+    hours = rules.hours if rules else []
+    days = rules.days if rules else []
+    max_stay = rules.maxStay if rules else None
+    zone_type = rules.type if rules else "unknown"
+    display, emoji = name_and_emoji(zone_type or "unknown")
+    url = external_rules.mapURL if external_rules else None
+    address = address_from_map_url(url) or cityParkingInfo.origin or ""
+    origin_coordinates = cityParkingInfo.origin_coordinates.model_dump() if cityParkingInfo.origin_coordinates else {}
+    remarks = []
+    if rules and rules.hasException:
+        remarks.append("Exceptions may apply. Check the Seety map.")
+
+    extra_data = {
+        "origin": cityParkingInfo.origin,
+        "latitude": origin_coordinates.get('lat', ''),
+        "longitude": origin_coordinates.get('lon', ''),
+        "url": url,
+        "api_mode": API_MODE_OFFICIAL,
+        "has_exception": rules.hasException if rules else False,
+        ParkingSensorType.TYPE.value: zone_type,
+        ParkingSensorType.TIME.value: hours_array_to_string(hours),
+        ParkingSensorType.DAYS.value: days_to_string(days),
+        ParkingSensorType.PRICE.value: official_prices_to_string(prices),
+        ParkingSensorType.REMARKS.value: " - ".join(remarks)[:254],
+        ParkingSensorType.MAXSTAY.value: minutes_to_string(max_stay),
+        ParkingSensorType.ZONE.value: f"{display} {emoji}",
+        ParkingSensorType.ADDRESS.value: address,
+
+        ParkingSensorType.TYPE.value + "_src": zone_type,
+        ParkingSensorType.TIME.value + "_src": hours,
+        ParkingSensorType.DAYS.value + "_src": days,
+        ParkingSensorType.PRICE.value + "_src": prices,
+        ParkingSensorType.REMARKS.value + "_src": remarks,
+        ParkingSensorType.MAXSTAY.value + "_src": max_stay,
+        ParkingSensorType.ZONE.value + "_src": zone_type,
+        ParkingSensorType.ADDRESS.value + "_src": address,
+    }
+    cityParkingInfo.extra_data = extra_data
+
+
+def address_from_map_url(map_url: str) -> str:
+    if not map_url:
+        return ""
+
+    try:
+        path = urlparse(map_url).path.strip("/")
+        if not path:
+            return ""
+        return unquote(path.split("/")[0])
+    except ValueError:
+        return ""
 
 def days_to_string(days):
     names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -106,22 +169,33 @@ def is_days_active_today(days) -> bool:
     return today in normalized_days
 
 def hours_array_to_string(hours: List[str]) -> str:
-    if not hours or len(hours) != 2:
+    if not hours or len(hours) < 2 or len(hours) % 2 != 0:
         return ""
 
-    start, end = hours
+    ranges = []
+    for i in range(0, len(hours), 2):
+        start, end = hours[i], hours[i + 1]
 
-    # Full-day special case
-    if start == "00:00" and end == "24:00":
-        return "24h/24"
+        # Full-day special case
+        if start == "00:00" and end == "24:00":
+            ranges.append("24h/24")
+        else:
+            ranges.append(f"{start} - {end}")
 
-    return f"{start} - {end}"
+    return ", ".join(ranges)
 
 def is_hours_active_now(hours):
-    if not hours or len(hours) != 2:
+    if not hours or len(hours) < 2 or len(hours) % 2 != 0:
         return False
 
-    start_str, end_str = hours
+    for i in range(0, len(hours), 2):
+        if is_hour_range_active_now(hours[i], hours[i + 1]):
+            return True
+
+    return False
+
+
+def is_hour_range_active_now(start_str, end_str):
 
     # 24h/24
     if start_str == "00:00" and end_str == "24:00":
@@ -142,6 +216,44 @@ def is_hours_active_now(hours):
 
     # overnight range
     return now >= start or now < end
+
+
+def official_prices_to_string(prices: dict) -> str:
+    if not prices:
+        return ""
+
+    parts = []
+    free_time = prices.get("freeTime")
+    if free_time:
+        try:
+            parts.append(f"Free: {int(float(free_time))}min")
+        except (TypeError, ValueError):
+            pass
+
+    price_entries = []
+    for duration, price in prices.items():
+        if duration == "freeTime":
+            continue
+        try:
+            price_entries.append((int(duration), price))
+        except (TypeError, ValueError):
+            continue
+
+    for duration, price in sorted(price_entries, key=lambda item: item[0]):
+        parts.append(f"{format_price(price)} EUR ({minutes_to_string(duration)})")
+
+    return " - ".join(parts)
+
+
+def format_price(price) -> str:
+    try:
+        price_float = float(price)
+    except (TypeError, ValueError):
+        return str(price)
+
+    if price_float.is_integer():
+        return str(int(price_float))
+    return str(price_float)
 
 
 def prices_to_string(prices: dict) -> str:

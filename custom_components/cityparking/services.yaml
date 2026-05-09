@@ -9,4 +9,21 @@ city_parking_info:
             example: zone.home
             selector:
               text:
+        api_mode:
+            name: Seety API
+            description: Use legacy for the existing implementation or official for Seety's external API
+            required: False
+            example: official
+            selector:
+              select:
+                options:
+                  - legacy
+                  - official
+        api_key:
+            name: Official Seety API key
+            description: Required when api_mode is official
+            required: False
+            selector:
+              text:
+                type: password
 

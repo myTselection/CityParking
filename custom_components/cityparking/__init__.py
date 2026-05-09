@@ -18,7 +18,14 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.location import find_coordinates
 
-from .const import DOMAIN, CONF_ORIGIN
+from .const import (
+    API_MODE_LEGACY,
+    API_MODE_OFFICIAL,
+    CONF_API_KEY,
+    CONF_API_MODE,
+    CONF_ORIGIN,
+    DOMAIN,
+)
 from .coordinator import (
     CityParkingUserDataUpdateCoordinator,
     async_find_city_parking_info
@@ -42,7 +49,13 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 SERVICE_CITY_PARKING_INFO = "city_parking_info"
 SERVICE_CITY_PARKING_INFO_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_ORIGIN): TextSelector()
+        vol.Required(CONF_ORIGIN): TextSelector(),
+        vol.Optional(CONF_API_MODE): SelectSelector(
+            SelectSelectorConfig(options=[API_MODE_LEGACY, API_MODE_OFFICIAL])
+        ),
+        vol.Optional(CONF_API_KEY): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+        ),
     }
 )
 
@@ -68,7 +81,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
 
-    seetyApi = SeetyApi(websession=async_get_clientsession(hass))
+    seetyApi = SeetyApi(
+        websession=async_get_clientsession(hass),
+        api_mode=entry.data.get(CONF_API_MODE, API_MODE_LEGACY),
+        api_key=entry.data.get(CONF_API_KEY),
+    )
 
     coordinator: CityParkingUserDataUpdateCoordinator
     httpx_client = get_async_client(hass)
@@ -85,11 +102,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
 
         origin = service.data[CONF_ORIGIN]
+        service_api_mode = service.data.get(
+            CONF_API_MODE, entry.data.get(CONF_API_MODE, API_MODE_LEGACY)
+        )
+        service_api_key = service.data.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
+        service_seety_api = seetyApi
+        if service_api_mode != seetyApi.api_mode or service_api_key != seetyApi.api_key:
+            service_seety_api = SeetyApi(
+                websession=async_get_clientsession(hass),
+                api_mode=service_api_mode,
+                api_key=service_api_key,
+            )
 
 
         response = await async_find_city_parking_info(
             hass=hass,
-            seetyApi=seetyApi,
+            seetyApi=service_seety_api,
             origin=origin,
             routeCalculatorClient=routeCalculatorClient
         )

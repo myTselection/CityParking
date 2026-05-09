@@ -5,19 +5,24 @@ import math
 
 from asyncio import CancelledError, TimeoutError
 from typing import Optional
-import math
 
 import pydantic
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientError
 from aiohttp_retry import ExponentialRetry, RetryClient
-from pydantic import ValidationError
+from pydantic import ValidationError as PydanticValidationError
 from yarl import URL
-from typing import Optional, Dict, Any
 
-from .models import CityParkingModel, SeetyLocationResponse, SeetyStreetComplete, SeetyStreetRules, SeetyUser, Coords
-
-import logging
+from ..const import API_MODE_LEGACY, API_MODE_OFFICIAL
+from .models import (
+    CityParkingModel,
+    Coords,
+    SeetyExternalRulesResponse,
+    SeetyLocationResponse,
+    SeetyStreetComplete,
+    SeetyStreetRules,
+    SeetyUser,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,16 +32,38 @@ class SeetyApi:
     # the token seems to be valid for a long time and reduces the number of API calls needed to get the token for each request
     _seety_user_token: Optional[SeetyUser] = None
 
-    def __init__(self, websession: ClientSession):
+    def __init__(
+        self,
+        websession: ClientSession,
+        api_mode: str = API_MODE_LEGACY,
+        api_key: Optional[str] = None,
+    ):
         """Initialize the session."""
         self.websession = websession
+        self.api_mode = api_mode or API_MODE_LEGACY
+        self.api_key = (api_key or "").strip()
         self.retry_client = RetryClient(
             client_session=self.websession,
             retry_options=ExponentialRetry(attempts=3, start_timeout=5),
         )
+
+    @property
+    def use_official_api(self) -> bool:
+        """Return true when configured to use Seety's official external API."""
+        return self.api_mode == API_MODE_OFFICIAL
+
     def clearSeetyUserToken(self):
         """Clear the cached Seety user token."""
         self._seety_user_token = None
+
+    def _parse_model(self, model, response):
+        try:
+            if pydantic.version.VERSION.startswith("1"):
+                return model.parse_obj(response)
+            return model.model_validate(response)
+        except PydanticValidationError as err:
+            raise ValidationError(err) from err
+
     async def getSeetyToken(self) -> SeetyUser:
 
         if self._seety_user_token is not None:
@@ -46,10 +73,7 @@ class SeetyApi:
         header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_post_with_retry_client(url, payload={}, header=header)
 
-        if pydantic.version.VERSION.startswith("1"):
-            seetyUser = SeetyUser.parse_obj(response)
-        else:
-            seetyUser = SeetyUser.model_validate(response)
+        seetyUser = self._parse_model(SeetyUser, response)
 
         return seetyUser
     
@@ -61,14 +85,14 @@ class SeetyApi:
         header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "auth-token": seetyUser.access_token, "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_get_with_retry_client(url, header=header)
 
-        if pydantic.version.VERSION.startswith("1"):
-            seetyLocationInfo = SeetyLocationResponse.parse_obj(response)
-        else:
-            seetyLocationInfo = SeetyLocationResponse.model_validate(response)
+        seetyLocationInfo = self._parse_model(SeetyLocationResponse, response)
 
         return seetyLocationInfo
 
     async def getAddressSeetyInfo(self, coordinates: Coords, seetyUser: SeetyUser = None, seetyLocationInfo: SeetyLocationResponse = None) -> CityParkingModel:
+        if self.use_official_api:
+            return await self.getOfficialAddressSeetyInfo(coordinates)
+
         if seetyUser is None:
             seetyUser = await self.getSeetyToken()
         if seetyLocationInfo is None:
@@ -80,28 +104,46 @@ class SeetyApi:
         header={"Content-Type": "application/json", "App-client": "web", "App-lang": "en", "App-version": "12", "auth-token": seetyUser.access_token, "Referer": "https://map.seety.co/", "Origin": "https://map.seety.co"}
         response = await self.json_get_with_retry_client(url, header=header)
         
-        if pydantic.version.VERSION.startswith("1"):
-            seetyStreetRules = SeetyStreetRules.parse_obj(response)
-        else:
-            seetyStreetRules = SeetyStreetRules.model_validate(response)
+        seetyStreetRules = self._parse_model(SeetyStreetRules, response)
 
         
         url = URL(f"https://api.cparkapp.com/street/complete/{formatted_address}/{coordinates.lat}/{coordinates.lon}")
         responseComplete = await self.json_get_with_retry_client(url, header=header)
         
-        if pydantic.version.VERSION.startswith("1"):
-            seetyStreetComplete = SeetyStreetComplete.parse_obj(responseComplete)
-        else:
-            seetyStreetComplete = SeetyStreetComplete.model_validate(responseComplete)
+        seetyStreetComplete = self._parse_model(SeetyStreetComplete, responseComplete)
 
         cityParkingModel: CityParkingModel
         cityParkingModel = CityParkingModel(
             user = seetyUser,
             location = seetyLocationInfo,
             rules = seetyStreetRules, 
-            streetComplete = seetyStreetComplete
+            streetComplete = seetyStreetComplete,
+            api_mode = API_MODE_LEGACY,
         )
         return cityParkingModel 
+
+    async def getOfficialRulesForCoordinate(self, coordinates: Coords) -> SeetyExternalRulesResponse:
+        """Get parking rules from Seety's official external API."""
+        if not self.api_key:
+            raise ValidationError("Official Seety API key is required")
+
+        url = URL(f"https://api.cparkapp.com/extern/rules/{coordinates.lat}/{coordinates.lon}")
+        header={"Content-Type": "application/json", "API-Key": self.api_key}
+        response = await self.json_get_with_retry_client(url, header=header)
+        seetyExternalRules = self._parse_model(SeetyExternalRulesResponse, response)
+
+        if seetyExternalRules.status != "OK" or not seetyExternalRules.rules:
+            raise EmptyResponseError(f"Official Seety API returned status: {seetyExternalRules.status}")
+
+        return seetyExternalRules
+
+    async def getOfficialAddressSeetyInfo(self, coordinates: Coords) -> CityParkingModel:
+        """Map official external API rules into the integration model."""
+        seetyExternalRules = await self.getOfficialRulesForCoordinate(coordinates)
+        return CityParkingModel(
+            externalRules=seetyExternalRules,
+            api_mode=API_MODE_OFFICIAL,
+        )
 
 
 

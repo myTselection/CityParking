@@ -9,7 +9,6 @@ from typing import Any
 import voluptuous as vol
 from aiohttp.client_exceptions import ClientError
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import section
 from homeassistant.helpers.location import find_coordinates
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.httpx_client import get_async_client
@@ -17,20 +16,35 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
-    selector, SelectSelector, SelectSelectorConfig
+    SelectSelector,
+    SelectSelectorConfig,
 )
 from .seetyApi import SeetyApi, EmptyResponseError, ValidationError
+from .seetyApi.models import Coords
 # from .location import LocationSession
 from pywaze.route_calculator import WazeRouteCalculator
 
-from .const import DOMAIN, CONF_ORIGIN
+from .const import (
+    API_MODE_LEGACY,
+    API_MODE_OFFICIAL,
+    CONF_API_KEY,
+    CONF_API_MODE,
+    CONF_ORIGIN,
+    DOMAIN,
+)
 import logging
 
 _LOGGER = logging.getLogger(DOMAIN)
 
 CITYPARKING_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_ORIGIN): str
+        vol.Optional(CONF_ORIGIN): str,
+        vol.Optional(CONF_API_MODE, default=API_MODE_LEGACY): SelectSelector(
+            SelectSelectorConfig(options=[API_MODE_LEGACY, API_MODE_OFFICIAL])
+        ),
+        vol.Optional(CONF_API_KEY): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+        ),
     }
 )
 
@@ -51,16 +65,31 @@ class CityParkingFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             if user_input.get(CONF_ORIGIN):
                 origin = user_input[CONF_ORIGIN]
-                unique_id = origin
+                api_mode = user_input.get(CONF_API_MODE, API_MODE_LEGACY)
+                api_key = user_input.get(CONF_API_KEY)
+                unique_id = origin if api_mode == API_MODE_LEGACY else f"{origin}_{api_mode}"
+                if api_mode == API_MODE_OFFICIAL and not api_key:
+                    errors["base"] = "missing_api_key"
+                    return self.async_show_form(
+                        step_id="user", data_schema=CITYPARKING_SCHEMA, errors=errors
+                    )
+
                 resolved_origin = find_coordinates(self.hass, user_input.get(CONF_ORIGIN))
-                seetyApi = SeetyApi(websession=async_get_clientsession(self.hass))
+                seetyApi = SeetyApi(
+                    websession=async_get_clientsession(self.hass),
+                    api_mode=api_mode,
+                    api_key=api_key,
+                )
                 httpx_client = get_async_client(self.hass)
                 # session = LocationSession()
                 self.routeCalculatorClient = WazeRouteCalculator(region="EU", client=httpx_client)
                 _LOGGER.debug(f"resolved origin: {resolved_origin}, {user_input.get(CONF_ORIGIN)}")
                 origin_coordinates = await self.routeCalculatorClient._ensure_coords(resolved_origin)
                 _LOGGER.debug(f"resolved origin: {resolved_origin}, {user_input.get(CONF_ORIGIN)}, origin_coordinates: {origin_coordinates}")
-                await seetyApi.getSeetyToken()
+                if api_mode == API_MODE_OFFICIAL:
+                    await seetyApi.getOfficialRulesForCoordinate(Coords(**origin_coordinates))
+                else:
+                    await seetyApi.getSeetyToken()
             else:
                 errors["base"] = "missing_data"
                 return self.async_show_form(

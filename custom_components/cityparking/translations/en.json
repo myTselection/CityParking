@@ -5,13 +5,18 @@
     },
     "error": {
       "cannot_connect": "Failed to connect",
+      "empty_response": "No parking rules were returned for this location",
+      "missing_api_key": "Please provide the Seety official API key",
+      "missing_data": "Please provide an origin",
       "unknown": "Unexpected error"
     },
     "step": {
       "user": {
           "title": "Setup city parking info",
           "data": {
-            "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country"
+            "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
+            "api_mode": "Seety API",
+            "api_key": "Official Seety API key"
           }
         }
       }
@@ -24,6 +29,14 @@
         "origin": {
           "name": "Origin",
           "description": "Origin eg 51.330436, 3.802043 or person.fred or zone.home or street, city, country"
+        },
+        "api_mode": {
+          "name": "Seety API",
+          "description": "Use the existing web API implementation or Seety's official external API"
+        },
+        "api_key": {
+          "name": "Official Seety API key",
+          "description": "Required when api_mode is official"
         }
       }
     }

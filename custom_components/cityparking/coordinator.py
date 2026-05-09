@@ -17,7 +17,7 @@ from .seetyApi.extract_info import *
 # from .location import LocationSession
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 
-from .const import DOMAIN, UPDATE_INTERVAL,CONF_ORIGIN
+from .const import API_MODE_LEGACY, CONF_API_MODE, CONF_ORIGIN, DOMAIN, UPDATE_INTERVAL
 _LOGGER = logging.getLogger(DOMAIN)
 SECONDS_BETWEEN_API_CALLS = 0.5
 MAX_RESULT_AGE = 3000
@@ -38,6 +38,7 @@ async def async_find_city_parking_info(
     cityParkingInfo:CityParkingModel = await seetyApi.getAddressSeetyInfo(origin_coordinates)
     cityParkingInfo.origin = origin
     cityParkingInfo.origin_coordinates = Coords.model_validate(origin_coordinates)
+    cityParkingInfo.api_mode = seetyApi.api_mode
 
     # self._attr_name = self.station.name
     extract_readable_info(cityParkingInfo)
@@ -89,6 +90,7 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self._seetyApi = seetyApi
         self._origin = config_entry.data.get(CONF_ORIGIN)
+        self.api_mode = config_entry.data.get(CONF_API_MODE, API_MODE_LEGACY)
         self._routeCalculatorClient = routeCalculatorClient
         self._previousResults : CityParkingModel = None
         self._previousCoordinates : Coords = None
@@ -137,6 +139,7 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
             data = await self._seetyApi.getAddressSeetyInfo(origin_coordinates)
             data.origin = self._origin
             data.origin_coordinates = origin_coordinates
+            data.api_mode = self.api_mode
             extract_readable_info(data)
             # _LOGGER.debug(f"nearby_stations: {data}")
             self._previousResults = data
