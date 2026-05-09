@@ -23,7 +23,9 @@ from .const import (
     API_MODE_OFFICIAL,
     CONF_API_KEY,
     CONF_API_MODE,
+    CONF_GEOAPIFY_API_KEY,
     CONF_ORIGIN,
+    DEFAULT_SEETY_API_KEY,
     DOMAIN,
 )
 from .coordinator import (
@@ -56,8 +58,17 @@ SERVICE_CITY_PARKING_INFO_SCHEMA = vol.Schema(
         vol.Optional(CONF_API_KEY): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
+        vol.Optional(CONF_GEOAPIFY_API_KEY): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+        ),
     }
 )
+
+
+def entry_config(entry: ConfigEntry) -> dict:
+    """Return current config values with options taking precedence."""
+    return {**entry.data, **entry.options}
+
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old entry."""
@@ -76,15 +87,22 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the integration when options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up from a config entry."""
 
     hass.data.setdefault(DOMAIN, {})
+    config = entry_config(entry)
 
     seetyApi = SeetyApi(
         websession=async_get_clientsession(hass),
-        api_mode=entry.data.get(CONF_API_MODE, API_MODE_LEGACY),
-        api_key=entry.data.get(CONF_API_KEY),
+        api_mode=config.get(CONF_API_MODE, API_MODE_LEGACY),
+        api_key=config.get(CONF_API_KEY) or DEFAULT_SEETY_API_KEY,
+        geoapify_api_key=config.get(CONF_GEOAPIFY_API_KEY),
     )
 
     coordinator: CityParkingUserDataUpdateCoordinator
@@ -93,6 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = CityParkingUserDataUpdateCoordinator(hass, seetyApi, entry, routeCalculatorClient)
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
     await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -103,15 +122,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         origin = service.data[CONF_ORIGIN]
         service_api_mode = service.data.get(
-            CONF_API_MODE, entry.data.get(CONF_API_MODE, API_MODE_LEGACY)
+            CONF_API_MODE, config.get(CONF_API_MODE, API_MODE_LEGACY)
         )
-        service_api_key = service.data.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
+        service_api_key = service.data.get(
+            CONF_API_KEY
+        ) or config.get(CONF_API_KEY) or DEFAULT_SEETY_API_KEY
+        service_geoapify_api_key = service.data.get(
+            CONF_GEOAPIFY_API_KEY, config.get(CONF_GEOAPIFY_API_KEY)
+        )
         service_seety_api = seetyApi
-        if service_api_mode != seetyApi.api_mode or service_api_key != seetyApi.api_key:
+        if (
+            service_api_mode != seetyApi.api_mode
+            or service_api_key != seetyApi.api_key
+            or service_geoapify_api_key != seetyApi.geoapify_api_key
+        ):
             service_seety_api = SeetyApi(
                 websession=async_get_clientsession(hass),
                 api_mode=service_api_mode,
                 api_key=service_api_key,
+                geoapify_api_key=service_geoapify_api_key,
             )
 
 

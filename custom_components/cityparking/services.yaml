@@ -21,9 +21,15 @@ city_parking_info:
                   - official
         api_key:
             name: Official Seety API key
-            description: Required when api_mode is official
+            description: Optional override. When omitted, the configured or built-in Seety API key is used
             required: False
             selector:
               text:
                 type: password
-
+        geoapify_api_key:
+            name: Geoapify API key
+            description: Overrides the configured Geoapify API key for reverse geocoding
+            required: False
+            selector:
+              text:
+                type: password

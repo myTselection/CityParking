@@ -13,7 +13,7 @@ from aiohttp_retry import ExponentialRetry, RetryClient
 from pydantic import ValidationError as PydanticValidationError
 from yarl import URL
 
-from ..const import API_MODE_LEGACY, API_MODE_OFFICIAL
+from ..const import API_MODE_LEGACY, API_MODE_OFFICIAL, DEFAULT_SEETY_API_KEY
 from .models import (
     CityParkingModel,
     Coords,
@@ -37,11 +37,13 @@ class SeetyApi:
         websession: ClientSession,
         api_mode: str = API_MODE_LEGACY,
         api_key: Optional[str] = None,
+        geoapify_api_key: Optional[str] = None,
     ):
         """Initialize the session."""
         self.websession = websession
         self.api_mode = api_mode or API_MODE_LEGACY
-        self.api_key = (api_key or "").strip()
+        self.api_key = (api_key or DEFAULT_SEETY_API_KEY).strip()
+        self.geoapify_api_key = (geoapify_api_key or "").strip()
         self.retry_client = RetryClient(
             client_session=self.websession,
             retry_options=ExponentialRetry(attempts=3, start_timeout=5),
@@ -79,6 +81,100 @@ class SeetyApi:
     
 
     async def getAddressForCoordinate(self, coordinates: Coords, seetyUser: SeetyUser = None) -> SeetyLocationResponse:
+        if self.geoapify_api_key:
+            try:
+                return await self.getGeoapifyAddressForCoordinate(coordinates)
+            except Exception as err:
+                _LOGGER.warning(
+                    "Geoapify reverse geocoding failed for %s,%s, falling back to Seety geocode: %s",
+                    coordinates.lat,
+                    coordinates.lon,
+                    err,
+                )
+        else:
+            _LOGGER.debug("Geoapify API key is missing, using Seety geocode fallback")
+
+        return await self.getSeetyAddressForCoordinate(coordinates, seetyUser)
+
+    async def getGeoapifyAddressForCoordinate(self, coordinates: Coords) -> SeetyLocationResponse:
+        if not self.geoapify_api_key:
+            raise ValidationError("Geoapify API key is required")
+
+        url = URL("https://api.geoapify.com/v1/geocode/reverse").with_query(
+            {
+                "lat": coordinates.lat,
+                "lon": coordinates.lon,
+                "format": "json",
+                "limit": 1,
+                "apiKey": self.geoapify_api_key,
+            }
+        )
+        response = await self.json_get_with_retry_client(url)
+        geoapify_result = self._geoapify_first_result(response)
+        formatted_address = self._geoapify_formatted_address(geoapify_result)
+        if not formatted_address:
+            raise EmptyResponseError("Geoapify reverse geocode did not return an address")
+
+        seety_location_info = {
+            "status": "OK",
+            "results": [
+                {
+                    "formatted_address": formatted_address,
+                    "countryCode": (geoapify_result.get("country_code") or "").upper(),
+                    "geometry": {
+                        "location": {
+                            "lat": geoapify_result.get("lat", coordinates.lat),
+                            "lng": geoapify_result.get("lon", coordinates.lon),
+                        }
+                    },
+                    "types": ["street_address"],
+                }
+            ],
+        }
+
+        return self._parse_model(SeetyLocationResponse, seety_location_info)
+
+    def _geoapify_first_result(self, response) -> dict:
+        if not isinstance(response, dict) or not response:
+            raise EmptyResponseError("Geoapify reverse geocode returned no response")
+
+        if response.get("results"):
+            return response["results"][0]
+
+        features = response.get("features") or []
+        if features:
+            return features[0].get("properties") or {}
+
+        raise EmptyResponseError("Geoapify reverse geocode returned no results")
+
+    def _geoapify_formatted_address(self, result: dict) -> str:
+        if not result:
+            return ""
+
+        formatted_address = result.get("formatted")
+        if formatted_address:
+            return formatted_address
+
+        return ", ".join(
+            part
+            for part in [
+                result.get("address_line1"),
+                result.get("address_line2"),
+                result.get("city"),
+                result.get("country"),
+            ]
+            if part
+        )
+
+    def _redact_sensitive_url(self, url) -> URL:
+        url = URL(url)
+        query = dict(url.query)
+        for key in ("apiKey", "apikey", "api_key", "key"):
+            if key in query:
+                query[key] = "***"
+        return url.with_query(query)
+
+    async def getSeetyAddressForCoordinate(self, coordinates: Coords, seetyUser: SeetyUser = None) -> SeetyLocationResponse:
         if seetyUser is None:
             seetyUser = await self.getSeetyToken()
         url = URL(f"https://api.cparkapp.com/geocode/{coordinates.lat}/{coordinates.lon}")
@@ -197,16 +293,17 @@ class SeetyApi:
 
     async def json_get_with_retry_client(self, url, header=None):
         json_response = None
+        safe_url = self._redact_sensitive_url(url)
         try:
             async with self.retry_client.get(url, headers=header) as response:
                 status = response.status
                 reason = response.reason
                 headers = dict(response.headers)
 
-                _LOGGER.debug("GET %s -> %s %s", url, status, reason)
+                _LOGGER.debug("GET %s -> %s %s", safe_url, status, reason)
                 if response.status == 200:
                     result = await response.json(content_type=None)
-                    _LOGGER.debug(f"response get url {url}, status: {response.status}, response: {result}")
+                    _LOGGER.debug(f"response get url {safe_url}, status: {response.status}, response: {result}")
                     if result:
                         json_response = result
                     else:
@@ -218,7 +315,7 @@ class SeetyApi:
                     _LOGGER.exception(
                         "HTTPError %s occurred while requesting %s, reason: %s, headers: %s",
                         response.status,
-                        url,
+                        safe_url,
                         reason,
                         headers
                     )
@@ -235,7 +332,7 @@ class SeetyApi:
             response_body = await response.text()
             _LOGGER.exception(
                 "Error while requesting %s: %s, error: %s",
-                url,
+                safe_url,
                 response_body,
                 err,
                 exc_info=True

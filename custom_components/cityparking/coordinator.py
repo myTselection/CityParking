@@ -89,8 +89,9 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=UPDATE_INTERVAL,
         )
         self._seetyApi = seetyApi
-        self._origin = config_entry.data.get(CONF_ORIGIN)
-        self.api_mode = config_entry.data.get(CONF_API_MODE, API_MODE_LEGACY)
+        config = {**config_entry.data, **config_entry.options}
+        self._origin = config.get(CONF_ORIGIN)
+        self.api_mode = config.get(CONF_API_MODE, API_MODE_LEGACY)
         self._routeCalculatorClient = routeCalculatorClient
         self._previousResults : CityParkingModel = None
         self._previousCoordinates : Coords = None

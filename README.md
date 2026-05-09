@@ -7,7 +7,7 @@
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/myTselection/CityParking.svg)](https://github.com/myTselection/CityParking/graphs/commit-activity)
 
 # 🅿️ City Parking Home Assistant integration
-Home Assistant custom integration to provide public street city parking information for any location. This custom component has been built from the ground up to fetch public parking information and integrate this information into Home Assistant. This integration is built against the public websites provided by [seety.co](https://seety.co/) and [seety Maps](https://map.seety.co/?lang=en). (and maybe other similar sites such as [Parkopedia](https://en.parkopedia.com/) in future). Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
+Home Assistant custom integration to provide public street city parking information for any location. This custom component has been built from the ground up to fetch public parking information and integrate this information into Home Assistant. This integration is built against the API and public websites provided by [seety.co](https://seety.co/) and [seety Maps](https://map.seety.co/?lang=en). (and maybe other similar sites such as [Parkopedia](https://en.parkopedia.com/) in future). Sensors will be created for any desired location and specific service can be called to get parking information ad hoc of any location. 
 
 This integration is in no way affiliated with seety.
 
@@ -41,7 +41,9 @@ To detect exiting a car, an automation can be defined using sensor.smartphone_ha
      You can also provide latitude and longitude information, eg `51.3304,3.802`. 
 
      You can also just provide the full address (but I noticed the current pywaze convertion from address to lat/lon is not very accurate).
-- By default the integration uses the existing Seety web API implementation. If Seety provided you an official external API key, select `official` as the Seety API mode and enter the key during setup.
+- Enter a Geoapify API key during setup. Get an API key at [Geoapify.com](https://myprojects.geoapify.com/register), it has a free tier for 3K geocoding requests per day.  The integration uses Geoapify to reverse geocode coordinates to a street address before asking Seety for parking rules, and falls back to Seety's geocoder if Geoapify cannot return an address.
+- By default the integration uses Seety's official external API with the built-in Seety API key. You can still select the legacy Seety web API implementation in the Seety API mode field.
+- Existing integration entries can be updated from the integration options, including origin, Seety API mode, Geoapify API key, and a custom Seety API key.
 
 
 ## Integration

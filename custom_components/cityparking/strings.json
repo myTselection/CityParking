@@ -6,6 +6,7 @@
     "error": {
       "cannot_connect": "Failed to connect",
       "empty_response": "No parking rules were returned for this location.",
+      "missing_geoapify_api_key": "Please provide the Geoapify API key.",
       "missing_api_key": "Please provide the Seety official API key.",
       "missing_data": "Please provide an origin.",
       "unknown": "Unexpected error"
@@ -15,9 +16,30 @@
         "data": {
           "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
           "api_mode": "Seety API",
-          "api_key": "Official Seety API key"
+          "geoapify_api_key": "Geoapify API key"
         },
         "title": "Setup city parking info"
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "empty_response": "No parking rules were returned for this location.",
+      "missing_geoapify_api_key": "Please provide the Geoapify API key.",
+      "missing_api_key": "Please provide the Seety official API key.",
+      "missing_data": "Please provide an origin.",
+      "unknown": "Unexpected error"
+    },
+    "step": {
+      "init": {
+        "data": {
+          "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
+          "api_mode": "Seety API",
+          "api_key": "Official Seety API key",
+          "geoapify_api_key": "Geoapify API key"
+        },
+        "title": "Update city parking info"
       }
     }
   },

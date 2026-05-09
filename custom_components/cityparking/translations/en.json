@@ -6,8 +6,10 @@
     "error": {
       "cannot_connect": "Failed to connect",
       "empty_response": "No parking rules were returned for this location",
+      "missing_geoapify_api_key": "Please provide the Geoapify API key",
       "missing_api_key": "Please provide the Seety official API key",
       "missing_data": "Please provide an origin",
+      "rate_limit_hit": "Rate limit hit",
       "unknown": "Unexpected error"
     },
     "step": {
@@ -16,10 +18,32 @@
           "data": {
             "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
             "api_mode": "Seety API",
-            "api_key": "Official Seety API key"
+            "geoapify_api_key": "Geoapify API key"
           }
         }
       }
+  },
+  "options": {
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "empty_response": "No parking rules were returned for this location",
+      "missing_geoapify_api_key": "Please provide the Geoapify API key",
+      "missing_api_key": "Please provide the Seety official API key",
+      "missing_data": "Please provide an origin",
+      "rate_limit_hit": "Rate limit hit",
+      "unknown": "Unexpected error"
+    },
+    "step": {
+      "init": {
+        "title": "Update city parking info",
+        "data": {
+          "origin": "Origin eg: 51.330436, 3.802043 or person.fred or zone.home or street, city, country",
+          "api_mode": "Seety API",
+          "api_key": "Official Seety API key",
+          "geoapify_api_key": "Geoapify API key"
+        }
+      }
+    }
   },
   "services": {
     "city_parking_info": {
@@ -36,7 +60,11 @@
         },
         "api_key": {
           "name": "Official Seety API key",
-          "description": "Required when api_mode is official"
+          "description": "Optional override. When omitted, the configured or built-in Seety API key is used"
+        },
+        "geoapify_api_key": {
+          "name": "Geoapify API key",
+          "description": "Used for reverse geocoding coordinates before falling back to Seety geocoding"
         }
       }
     }
