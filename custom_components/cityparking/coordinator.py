@@ -18,7 +18,7 @@ from .seetyApi.extract_info import *
 from pywaze.route_calculator import CalcRoutesResponse, WazeRouteCalculator
 
 from .const import API_MODE_LEGACY, CONF_API_MODE, CONF_ORIGIN, DOMAIN, UPDATE_INTERVAL
-_LOGGER = logging.getLogger(DOMAIN)
+_LOGGER = logging.getLogger(__name__)
 SECONDS_BETWEEN_API_CALLS = 0.5
 MAX_RESULT_AGE = 3000
 

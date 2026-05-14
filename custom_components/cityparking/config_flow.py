@@ -37,7 +37,7 @@ from .const import (
 )
 import logging
 
-_LOGGER = logging.getLogger(DOMAIN)
+_LOGGER = logging.getLogger(__name__)
 
 CITYPARKING_SCHEMA = vol.Schema(
     {
@@ -122,8 +122,20 @@ async def validate_config(
     )
     if entry_data[CONF_API_MODE] == API_MODE_OFFICIAL:
         await seetyApi.getOfficialRulesForCoordinate(Coords(**origin_coordinates))
+        _LOGGER.debug(
+            "API_MODE_OFFICIAL coordinates validation successful: %s, %s, origin_coordinates: %s",
+            resolved_origin,
+            entry_data[CONF_ORIGIN],
+            origin_coordinates,
+        )
     elif validate_legacy_token:
         await seetyApi.getSeetyToken()
+        _LOGGER.debug(
+            "MODE_LEGACY coordinates validation successful: %s, %s, origin_coordinates: %s",
+            resolved_origin,
+            entry_data[CONF_ORIGIN],
+            origin_coordinates,
+        )
 
     unique_id = (
         entry_data[CONF_ORIGIN]

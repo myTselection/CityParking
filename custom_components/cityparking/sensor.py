@@ -27,7 +27,7 @@ from . import (
 )
 from .const import API_MODE_LEGACY, DOMAIN
 
-_LOGGER = logging.getLogger(DOMAIN)
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(

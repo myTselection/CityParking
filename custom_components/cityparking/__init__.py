@@ -45,7 +45,7 @@ from homeassistant.helpers.selector import (
     NumberSelector,
 )
 
-_LOGGER = logging.getLogger(DOMAIN)
+_LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 SERVICE_CITY_PARKING_INFO = "city_parking_info"
