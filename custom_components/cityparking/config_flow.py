@@ -11,7 +11,6 @@ from aiohttp.client_exceptions import ClientError
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.location import find_coordinates
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.selector import (
     TextSelector,
@@ -20,8 +19,6 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
 )
-from .seetyApi import SeetyApi, EmptyResponseError, ValidationError, RateLimitHitError
-from .seetyApi.models import Coords
 # from .location import LocationSession
 from pywaze.route_calculator import WazeRouteCalculator
 
@@ -44,6 +41,9 @@ CITYPARKING_SCHEMA = vol.Schema(
         vol.Optional(CONF_ORIGIN): str,
         vol.Optional(CONF_API_MODE, default=API_MODE_OFFICIAL): SelectSelector(
             SelectSelectorConfig(options=[API_MODE_LEGACY, API_MODE_OFFICIAL])
+        ),
+        vol.Optional(CONF_API_KEY, default=DEFAULT_SEETY_API_KEY): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
         vol.Required(CONF_GEOAPIFY_API_KEY): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
@@ -104,12 +104,6 @@ async def validate_config(
         raise MissingApiKeyError()
 
     resolved_origin = find_coordinates(hass, entry_data[CONF_ORIGIN])
-    seetyApi = SeetyApi(
-        websession=async_get_clientsession(hass),
-        api_mode=entry_data[CONF_API_MODE],
-        api_key=entry_data[CONF_API_KEY],
-        geoapify_api_key=entry_data[CONF_GEOAPIFY_API_KEY],
-    )
     httpx_client = get_async_client(hass)
     route_calculator_client = WazeRouteCalculator(region="EU", client=httpx_client)
     _LOGGER.debug("resolved origin: %s, %s", resolved_origin, entry_data[CONF_ORIGIN])
@@ -120,22 +114,10 @@ async def validate_config(
         entry_data[CONF_ORIGIN],
         origin_coordinates,
     )
-    if entry_data[CONF_API_MODE] == API_MODE_OFFICIAL:
-        await seetyApi.getOfficialRulesForCoordinate(Coords(**origin_coordinates))
-        _LOGGER.debug(
-            "API_MODE_OFFICIAL coordinates validation successful: %s, %s, origin_coordinates: %s",
-            resolved_origin,
-            entry_data[CONF_ORIGIN],
-            origin_coordinates,
-        )
-    elif validate_legacy_token:
-        await seetyApi.getSeetyToken()
-        _LOGGER.debug(
-            "MODE_LEGACY coordinates validation successful: %s, %s, origin_coordinates: %s",
-            resolved_origin,
-            entry_data[CONF_ORIGIN],
-            origin_coordinates,
-        )
+    _LOGGER.debug(
+        "Skipping live Seety API validation during setup for %s mode",
+        entry_data[CONF_API_MODE],
+    )
 
     unique_id = (
         entry_data[CONF_ORIGIN]
@@ -172,18 +154,12 @@ class CityParkingFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input,
                 validate_legacy_token=True,
             )
-        except RateLimitHitError:
-            errors["base"] = "rate_limit_hit"
         except MissingDataError:
             errors["base"] = "missing_data"
         except MissingGeoapifyApiKeyError:
             errors["base"] = "missing_geoapify_api_key"
         except MissingApiKeyError:
             errors["base"] = "missing_api_key"
-        except EmptyResponseError:
-            errors["base"] = "empty_response"
-        except ValidationError:
-            errors["base"] = "validation"
         except (ClientError, TimeoutError, CancelledError):
             errors["base"] = "cannot_connect"
 
@@ -231,10 +207,6 @@ class CityParkingOptionsFlowHandler(config_entries.OptionsFlow):
             errors["base"] = "missing_geoapify_api_key"
         except MissingApiKeyError:
             errors["base"] = "missing_api_key"
-        except EmptyResponseError:
-            errors["base"] = "empty_response"
-        except ValidationError:
-            errors["base"] = "validation"
         except (ClientError, TimeoutError, CancelledError):
             errors["base"] = "cannot_connect"
 

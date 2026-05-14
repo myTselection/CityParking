@@ -34,6 +34,8 @@ class SeetyApi:
     _seety_user_token: Optional[SeetyUser] = None
     _official_rules_cache_ttl = 300
     _official_rules_cache_max_size = 64
+    _rate_limit_cooldown = 300
+    _rate_limited_until_by_key = {}
 
     def __init__(
         self,
@@ -98,6 +100,45 @@ class SeetyApi:
 
         self._official_rules_cache[cache_key] = (monotonic(), rules)
 
+    def _rate_limit_key(self, url):
+        url = URL(url)
+        if url.host != "api.cparkapp.com":
+            return None
+
+        credential = self.api_key if url.path.startswith("/extern/") else "legacy"
+        return (url.host, credential)
+
+    def _raise_if_rate_limited(self, url):
+        rate_limit_key = self._rate_limit_key(url)
+        if rate_limit_key is None:
+            return
+
+        retry_after = self._rate_limited_until_by_key.get(rate_limit_key, 0) - monotonic()
+        if retry_after > 0:
+            raise RateLimitHitError(
+                f"Rate limit of API has been hit, retry after {retry_after:.0f}s"
+            )
+
+    def _record_rate_limit(self, url, headers):
+        rate_limit_key = self._rate_limit_key(url)
+        if rate_limit_key is None:
+            return
+
+        retry_after = headers.get("Retry-After") if headers else None
+        try:
+            retry_after_seconds = max(1, int(float(retry_after)))
+        except (TypeError, ValueError):
+            retry_after_seconds = self._rate_limit_cooldown
+
+        self._rate_limited_until_by_key[rate_limit_key] = (
+            monotonic() + retry_after_seconds
+        )
+        _LOGGER.warning(
+            "Seety API rate limit hit for %s; suppressing matching calls for %ss",
+            self._redact_sensitive_url(url),
+            retry_after_seconds,
+        )
+
     async def getSeetyToken(self) -> SeetyUser:
 
         if self._seety_user_token is not None:
@@ -109,6 +150,7 @@ class SeetyApi:
         response = await self.json_post_with_retry_client(url, payload={}, header=header)
 
         seetyUser = self._parse_model(SeetyUser, response)
+        self._seety_user_token = seetyUser
 
         return seetyUser
     
@@ -375,13 +417,14 @@ class SeetyApi:
     async def json_get_with_retry_client(self, url, header=None):
         json_response = None
         safe_url = self._redact_sensitive_url(url)
+        self._raise_if_rate_limited(url)
         try:
             async with self.retry_client.get(url, headers=header) as response:
                 status = response.status
                 reason = response.reason
                 headers = dict(response.headers)
 
-                _LOGGER.debug("GET %s -> %s %s header: %s", safe_url, status, reason, header)
+                _LOGGER.debug("GET %s -> %s %s", safe_url, status, reason)
                 if response.status == 200:
                     result = await response.json(content_type=None)
                     _LOGGER.debug(f"response get url {safe_url}, status: {response.status}, response: {result}")
@@ -390,6 +433,7 @@ class SeetyApi:
                     else:
                         raise EmptyResponseError()
                 elif response.status == 429:
+                    self._record_rate_limit(url, headers)
                     raise RateLimitHitError("Rate limit of API has been hit")
                 else:
                     self.clearSeetyUserToken()
@@ -424,6 +468,7 @@ class SeetyApi:
 
     async def json_post_with_retry_client(self, url, payload, header=None):
         json_response = None
+        self._raise_if_rate_limited(url)
         try:
             async with self.retry_client.post(url, headers=header, json=payload) as response:
                 _LOGGER.debug(f"response post url {url}, status: {response.status}, payload: {payload}")
@@ -435,6 +480,7 @@ class SeetyApi:
                     else:
                         raise EmptyResponseError()
                 elif response.status == 429:
+                    self._record_rate_limit(url, response.headers)
                     raise RateLimitHitError("Rate limit of API has been hit")
                 else:
                     self.clearSeetyUserToken()

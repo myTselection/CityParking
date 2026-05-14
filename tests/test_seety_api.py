@@ -16,7 +16,11 @@ cityparking_pkg.__path__ = [str(PACKAGE_ROOT)]
 sys.modules["custom_components.cityparking"] = cityparking_pkg
 
 from custom_components.cityparking.const import API_MODE_LEGACY, API_MODE_OFFICIAL
-from custom_components.cityparking.seetyApi import EmptyResponseError, SeetyApi
+from custom_components.cityparking.seetyApi import (
+    EmptyResponseError,
+    RateLimitHitError,
+    SeetyApi,
+)
 from custom_components.cityparking.seetyApi.models import (
     Coords,
     SeetyLocationResponse,
@@ -30,6 +34,8 @@ def _api(api_mode=API_MODE_OFFICIAL):
     api.api_key = "test-api-key"
     api.geoapify_api_key = ""
     api._official_rules_cache = {}
+    api._rate_limited_until_by_key = {}
+    api._seety_user_token = None
     return api
 
 
@@ -73,6 +79,33 @@ def test_official_rules_are_cached_for_same_coordinates():
     assert second is first
     assert first.status == "OK"
     assert first.rules.type == "green"
+
+
+def test_legacy_user_token_is_cached():
+    api = _api(API_MODE_LEGACY)
+    api.json_post_with_retry_client = AsyncMock(
+        return_value={
+            "access_token": "token",
+            "status": "OK",
+        }
+    )
+
+    first = asyncio.run(api.getSeetyToken())
+    second = asyncio.run(api.getSeetyToken())
+
+    assert api.json_post_with_retry_client.await_count == 1
+    assert second is first
+    assert first.access_token == "token"
+
+
+def test_rate_limit_cooldown_suppresses_matching_calls():
+    api = _api()
+    url = "https://api.cparkapp.com/extern/rules/50.8503/4.3517"
+
+    api._record_rate_limit(url, {"Retry-After": "60"})
+
+    with pytest.raises(RateLimitHitError):
+        api._raise_if_rate_limited(url)
 
 
 def test_official_rules_cache_uses_rounded_coordinates():

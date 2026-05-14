@@ -11,7 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.location import find_coordinates
 from homeassistant.util import dt as dt_util
-from .seetyApi import SeetyApi, EmptyResponseError
+from .seetyApi import SeetyApi, EmptyResponseError, RateLimitHitError
 from .seetyApi.models import *
 from .seetyApi.extract_info import *
 # from .location import LocationSession
@@ -21,6 +21,40 @@ from .const import API_MODE_LEGACY, CONF_API_MODE, CONF_ORIGIN, DOMAIN, UPDATE_I
 _LOGGER = logging.getLogger(__name__)
 SECONDS_BETWEEN_API_CALLS = 0.5
 MAX_RESULT_AGE = 3000
+
+
+def rate_limited_city_parking_info(
+    origin: str,
+    origin_coordinates: Coords,
+    api_mode: str,
+) -> CityParkingModel:
+    """Build placeholder data so Home Assistant setup can complete while rate limited."""
+    extra_data = {
+        "origin": origin,
+        "latitude": origin_coordinates.lat,
+        "longitude": origin_coordinates.lon,
+        "url": None,
+        "api_mode": api_mode,
+        "rate_limited": True,
+    }
+    for parking_sensor_type in ParkingSensorType:
+        extra_data[parking_sensor_type.value] = "unknown"
+        extra_data[parking_sensor_type.value + "_src"] = None
+
+    extra_data[ParkingSensorType.ADDRESS.value] = origin
+    extra_data[ParkingSensorType.REMARKS.value] = (
+        "Seety API rate limit hit; will retry later"
+    )
+    extra_data[ParkingSensorType.TIME.value + "_src"] = []
+    extra_data[ParkingSensorType.DAYS.value + "_src"] = []
+    extra_data[ParkingSensorType.MAXSTAY.value + "_src"] = None
+
+    return CityParkingModel(
+        api_mode=api_mode,
+        origin=origin,
+        origin_coordinates=origin_coordinates,
+        extra_data=extra_data,
+    )
 
 async def async_find_city_parking_info(
         hass: HomeAssistant,
@@ -179,6 +213,24 @@ class CityParkingUserDataUpdateCoordinator(DataUpdateCoordinator):
                 exc_info=True,
             )
             raise UpdateFailed() from exc
+        except RateLimitHitError as exc:
+            _LOGGER.warning(
+                "Seety API rate limit hit while fetching data for %s (%s): %s",
+                self._origin,
+                resolved_origin,
+                exc,
+            )
+            if self._previousResults is not None:
+                update_restriction_status(self._previousResults, self._previousUpdate)
+                return self._previousResults
+
+            data = rate_limited_city_parking_info(
+                self._origin,
+                origin_coordinates,
+                self.api_mode,
+            )
+            update_restriction_status(data, dt_util.now())
+            return data
         except Exception as exc:
             _LOGGER.error(
                 "Unexpected error occurred while fetching data for %s (%s): %s",
